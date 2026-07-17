@@ -1,0 +1,6 @@
+{
+  "name": "Shopee Shorts Auto Poster",
+  "description": "ระบบอัตโนมัติคัดเลือกสินค้าจากคลัง ปรับปรุงลิงก์นายหน้า คอนเนคกับ Gemini API เพื่อสร้างแคปชันสายตลก และอัปโหลดคลิปลง YouTube Shorts ทุกวันโดยอัตโนมัติ",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

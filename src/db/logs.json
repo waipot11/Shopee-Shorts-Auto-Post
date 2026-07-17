@@ -1,0 +1,30 @@
+[
+  {
+    "id": "log-1",
+    "timestamp": "2026-07-15T09:00:12.450Z",
+    "productId": "prod-1",
+    "productName": "ไมโครโฟนไร้สาย Wireless Microphone สำหรับแคสเกมและทำคลิป",
+    "shopeeOriginalUrl": "https://shopee.co.th/product-i.11111111.22222222",
+    "shopeeAffiliateUrl": "https://shopee.co.th/product-i.11111111.22222222?utm_source=affiliate&utm_medium=shorts&aff_id=15324930878",
+    "youtubeTitle": "สายทำคลิปต้องมี! ไมค์ไร้สายโคตรแจ่ม ตัดเสียงรบกวนกริบ 🎤✨ #shopeeaffiliate #shorts",
+    "youtubeCaption": "รีวิวไมค์จิ๋วแจ๋วเสียงแจ่มแมว! ไม่ต้องลากสายยาวให้สะดุดขาตัวเองอีกต่อไป เหมาะสำหรับสายบ่น สายฮา หรือคนอยากบ่นคนเดียวเหงาๆ \n\n📌 พิกัดของดีไปจิ้มเลยที่คอมเมนต์ปักหมุดหรือท้ายคลิป: https://shopee.co.th/product-i.11111111.22222222?utm_source=affiliate&utm_medium=shorts&aff_id=15324930878 \n\n#ShopeeTH #นายหน้าช้อปปี้ #ไมค์ไร้สาย #รีวิวของดี #ใช้ดีบอกต่อ #ชี้เป้าโปรถูก #Shorts",
+    "youtubeVideoId": "dQw4w9WgXcQ",
+    "status": "SUCCESS",
+    "videoSource": "https://assets.mixkit.co/videos/preview/mixkit-holding-a-smartphone-with-a-blank-screen-vertical-40176-large.mp4",
+    "isSimulation": true
+  },
+  {
+    "id": "log-2",
+    "timestamp": "2026-07-16T09:00:08.112Z",
+    "productId": "prod-3",
+    "productName": "คีย์บอร์ดกลไกไร้สาย Retro Mechanical Keyboard",
+    "shopeeOriginalUrl": "https://shopee.co.th/product-i.55555555.66666666",
+    "shopeeAffiliateUrl": "https://shopee.co.th/product-i.55555555.66666666?utm_source=affiliate&utm_medium=shorts&aff_id=15324930878",
+    "youtubeTitle": "คีย์บอร์ดพิมพ์ดีดโบราณ เสียงพิมพ์โฮ่งมาก! พิมพ์งานจนโต๊ะพัง ⌨️💥 #retrokeyboard #shorts",
+    "youtubeCaption": "คีย์บอร์ดเสียงบลูสวิตช์พิมพ์ทีดังลั่นบ้าน แฟนไล่ไปนอนนอกห้องแต่นิ้วฟินมาก! ไฟกระพริบวิบวับเหมือนอยู่ดิสโก้เทคตอนปี 90s \n\n📌 ลิงก์จิ้มพิกัดท้ายคลิปเลย: https://shopee.co.th/product-i.55555555.66666666?utm_source=affiliate&utm_medium=shorts&aff_id=15324930878 \n\n#คีย์บอร์ดบลูทูธ #แต่งห้องคอม #RetroStyle #นายหน้าShopee #ช้อปปี้แอฟฟิลิเอต #รีวิวฮาๆ #Shorts",
+    "youtubeVideoId": "3tmd-ClpJxA",
+    "status": "SUCCESS",
+    "videoSource": "https://assets.mixkit.co/videos/preview/mixkit-typing-on-a-retro-computer-keyboard-41724-large.mp4",
+    "isSimulation": true
+  }
+]
