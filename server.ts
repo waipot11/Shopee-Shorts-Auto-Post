@@ -367,23 +367,23 @@ function getRealisticFallbackVideo(productId: string, productName: string): stri
   const nameLower = (productName || "").toLowerCase();
   
   if (productId === "prod-2" || nameLower.includes("กาแฟ") || nameLower.includes("coffee") || nameLower.includes("espresso")) {
-    return "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerFun.mp4";
+    return "https://samplelib.com/preview/mp4/sample-15s.mp4";
   }
   
   if (productId === "prod-3" || nameLower.includes("คีย์บอร์ด") || nameLower.includes("keyboard") || nameLower.includes("typing")) {
-    return "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerJoyrides.mp4";
+    return "https://samplelib.com/preview/mp4/sample-5s.mp4";
   }
 
   if (productId === "prod-1" || nameLower.includes("ไมโครโฟน") || nameLower.includes("micro") || nameLower.includes("sound")) {
-    return "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerEscapes.mp4";
+    return "https://samplelib.com/preview/mp4/sample-10s.mp4";
   }
 
   if (productId === "prod-4" || nameLower.includes("โคมไฟ") || nameLower.includes("lamp") || nameLower.includes("moon")) {
-    return "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4";
+    return "https://www.w3schools.com/html/mov_bbb.mp4";
   }
 
   // Default fallback with rich background audio
-  return "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerMeltdowns.mp4";
+  return "https://samplelib.com/preview/mp4/sample-10s.mp4";
 }
 
 // 4. Custom API for YouTube Shorts upload
@@ -438,8 +438,9 @@ async function uploadToYouTubeShorts(title: string, description: string, videoUr
     const urlsToTry = [
       videoUrl,
       fallbackUrl,
-      "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerMeltdowns.mp4",
-      "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerEscapes.mp4"
+      "https://samplelib.com/preview/mp4/sample-10s.mp4",
+      "https://samplelib.com/preview/mp4/sample-5s.mp4",
+      "https://www.w3schools.com/html/mov_bbb.mp4"
     ];
 
     let lastFetchError = "";
