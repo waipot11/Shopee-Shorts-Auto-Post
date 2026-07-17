@@ -367,22 +367,23 @@ function getRealisticFallbackVideo(productId: string, productName: string): stri
   const nameLower = (productName || "").toLowerCase();
   
   if (productId === "prod-2" || nameLower.includes("กาแฟ") || nameLower.includes("coffee") || nameLower.includes("espresso")) {
-    // Espresso Maker fallback: Classroom or people to show interactive lifestyle (instead of plain static bottles)
-    return "https://raw.githubusercontent.com/intel-iot-devkit/sample-videos/master/classroom.mp4";
+    return "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerFun.mp4";
   }
   
   if (productId === "prod-3" || nameLower.includes("คีย์บอร์ด") || nameLower.includes("keyboard") || nameLower.includes("typing")) {
-    // Keyboard fallback: Classroom of real people working on computers/keyboards (13.5MB, real-life)
-    return "https://raw.githubusercontent.com/intel-iot-devkit/sample-videos/master/classroom.mp4";
+    return "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerJoyrides.mp4";
   }
 
   if (productId === "prod-1" || nameLower.includes("ไมโครโฟน") || nameLower.includes("micro") || nameLower.includes("sound")) {
-    // Microphone fallback: Real people walking/talking with smartphones in public (5.4MB, real-life)
-    return "https://raw.githubusercontent.com/intel-iot-devkit/sample-videos/master/people-detection.mp4";
+    return "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerEscapes.mp4";
   }
 
-  // Default fallback: Real people walking/interacting (3.2MB, real-life)
-  return "https://raw.githubusercontent.com/intel-iot-devkit/sample-videos/master/one-by-one-person-detection.mp4";
+  if (productId === "prod-4" || nameLower.includes("โคมไฟ") || nameLower.includes("lamp") || nameLower.includes("moon")) {
+    return "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4";
+  }
+
+  // Default fallback with rich background audio
+  return "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerMeltdowns.mp4";
 }
 
 // 4. Custom API for YouTube Shorts upload
@@ -437,8 +438,8 @@ async function uploadToYouTubeShorts(title: string, description: string, videoUr
     const urlsToTry = [
       videoUrl,
       fallbackUrl,
-      "https://raw.githubusercontent.com/intel-iot-devkit/sample-videos/master/one-by-one-person-detection.mp4",
-      "https://www.w3schools.com/html/movie.mp4"
+      "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerMeltdowns.mp4",
+      "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerEscapes.mp4"
     ];
 
     let lastFetchError = "";
