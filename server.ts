@@ -85,17 +85,55 @@ async function writeLogs(logs: any[]) {
 }
 
 // 1. Shopee Affiliate Link generator
-function generateShopeeAffiliateLink(originalUrl: string, affiliateId: string) {
+function generateShopeeAffiliateLink(originalUrl: string, affiliateId: string, productName?: string) {
   const cleanId = affiliateId || DEFAULT_SHOPEE_AFFILIATE_ID;
-  // If original URL is missing or not a shopee URL, fallback gracefully
-  if (!originalUrl || !originalUrl.includes("shopee")) {
-    return `https://shopee.co.th?utm_source=affiliate&utm_medium=shorts&aff_id=${cleanId}`;
+  
+  if (!originalUrl) {
+    const defaultSearch = productName ? `https://shopee.co.th/search?keyword=${encodeURIComponent(productName)}` : `https://shopee.co.th`;
+    return `${defaultSearch}${defaultSearch.includes("?") ? "&" : "?"}utm_source=affiliate&utm_medium=shorts&aff_id=${cleanId}`;
+  }
+
+  let targetUrl = originalUrl;
+
+  // Detect if originalUrl is a placeholder (like product-i.11111111.22222222 or contains dummy numbers)
+  const isDummy = originalUrl.includes("11111111") ||
+                  originalUrl.includes("33333333") ||
+                  originalUrl.includes("55555555") ||
+                  originalUrl.includes("77777777") ||
+                  originalUrl.includes("99999999");
+
+  if (isDummy) {
+    let keyword = productName || "shopee";
+    if (originalUrl.includes("11111111")) keyword = "ไมโครโฟนไร้สาย";
+    else if (originalUrl.includes("33333333")) keyword = "เครื่องชงกาแฟเอสเพรสโซ่พกพา";
+    else if (originalUrl.includes("55555555")) keyword = "คีย์บอร์ดกลไกไร้สาย";
+    else if (originalUrl.includes("77777777")) keyword = "โคมไฟดวงจันทร์";
+    else if (originalUrl.includes("99999999")) keyword = "เครื่องให้อาหารสัตว์เลี้ยงอัตโนมัติ";
+    
+    targetUrl = `https://shopee.co.th/search?keyword=${encodeURIComponent(keyword)}`;
+  } else if (!originalUrl.includes("shopee")) {
+    if (productName) {
+      targetUrl = `https://shopee.co.th/search?keyword=${encodeURIComponent(productName)}`;
+    } else {
+      targetUrl = `https://shopee.co.th`;
+    }
+  }
+
+  // Strip existing search parameters if any to avoid collision
+  const baseUrl = targetUrl.split("?")[0];
+  const originalParams = targetUrl.includes("?") ? targetUrl.split("?")[1] : "";
+  
+  if (originalParams) {
+    // Keep existing query parameters (like keyword=...) but remove duplicate affiliate params if any
+    const cleanParams = originalParams
+      .split("&")
+      .filter(p => !p.startsWith("utm_source=") && !p.startsWith("utm_medium=") && !p.startsWith("aff_id="))
+      .join("&");
+    
+    const paramsString = cleanParams ? `${cleanParams}&` : "";
+    return `${baseUrl}?${paramsString}utm_source=affiliate&utm_medium=shorts&aff_id=${cleanId}`;
   }
   
-  // Strip existing search parameters if any to avoid collision
-  const baseUrl = originalUrl.split("?")[0];
-  
-  // Format affiliate URL
   return `${baseUrl}?utm_source=affiliate&utm_medium=shorts&aff_id=${cleanId}`;
 }
 
@@ -563,7 +601,7 @@ async function executeDailyAffiliateShortsPost(targetProductId?: string) {
   // Retrieve current active affiliate ID and config
   const config = await readConfig();
   const affiliateId = config.affiliateId || process.env.SHOPEE_AFFILIATE_ID || DEFAULT_SHOPEE_AFFILIATE_ID;
-  const affiliateLink = generateShopeeAffiliateLink(selectedProduct.originalUrl, affiliateId);
+  const affiliateLink = generateShopeeAffiliateLink(selectedProduct.originalUrl, affiliateId, selectedProduct.name);
 
   console.log(`🔗 [SYSTEM AUTO-POST] Generated Link: ${affiliateLink}`);
 
