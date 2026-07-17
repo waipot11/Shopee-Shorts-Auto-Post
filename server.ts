@@ -448,17 +448,18 @@ async function uploadToYouTubeShorts(title: string, description: string, videoUr
       try {
         console.log(`📥 [YouTube Upload] Trying to download video source (${i + 1}/${urlsToTry.length}): ${url}`);
         
-        // Use custom headers for the primary Mixkit URL, use simple fetch for others
-        const fetchOptions: any = url === videoUrl ? {
-          headers: {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-            "Accept": "video/mp4,video/*,*/*",
-            "Referer": "https://mixkit.co/",
-            "Accept-Language": "en-US,en;q=0.9"
-          }
-        } : {};
+        // Set standard browser headers for all sources to avoid bot-blocking, but ONLY send Referer to Mixkit
+        const headers: Record<string, string> = {
+          "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+          "Accept": "video/mp4,video/*,*/*",
+          "Accept-Language": "en-US,en;q=0.9"
+        };
+        
+        if (url && url.includes("mixkit.co")) {
+          headers["Referer"] = "https://mixkit.co/";
+        }
 
-        videoResponse = await fetch(url, fetchOptions);
+        videoResponse = await fetch(url, { headers });
         if (videoResponse.ok) {
           finalVideoUrlUsed = url;
           console.log(`✅ [YouTube Upload] Successfully downloaded video from: ${url}`);
