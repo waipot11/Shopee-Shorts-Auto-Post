@@ -1917,7 +1917,7 @@ export default function App() {
 
               {/* Step checklist */}
               <div className="space-y-4 pt-4 border-t border-slate-800">
-                <h3 className="text-md font-bold text-slate-200">🛠️ วิธีรับ YouTube Refresh Token สิทธิ์ถาวร (ถาวร 100% ไม่มีหลุด)</h3>
+                <h3 className="text-md font-bold text-slate-200">🛠️ วิธีรับ YouTube Refresh Token สิทธิ์ถาวร (ป้องกัน Error 403 และสิทธิ์หมดอายุ)</h3>
                 
                 <ol className="list-decimal pl-5 space-y-3.5 text-xs text-slate-300 leading-relaxed">
                   <li>
@@ -1929,6 +1929,9 @@ export default function App() {
                   <li>
                     ไปที่เมนู <strong className="text-white">Credentials &gt; OAuth consent screen</strong> ตั้งค่าสิทธิ์และกำหนดสโคป <code className="bg-slate-950 text-orange-400 px-1.5 py-0.5 rounded">https://www.googleapis.com/auth/youtube.upload</code> จากนั้นบันทึก
                   </li>
+                  <li className="bg-red-500/5 border border-red-500/10 p-2.5 rounded-xl">
+                    <strong className="text-red-400 font-bold">⚠️ ขั้นตอนสำคัญกัน Error 403:</strong> ในเมนู <strong className="text-white">OAuth consent screen</strong> ในส่วนของ <strong className="text-white">"Test users"</strong> ให้คุณคลิก <strong className="text-emerald-400 font-bold">"Add Users"</strong> และพิมพ์ที่อยู่อีเมลบัญชี Google/YouTube ของคุณลงไปด้วย! (หากไม่ได้ระบุ อีเมลนี้จะไม่ได้รับสิทธิ์ทดสอบและจะโดนบล็อกด้วยรหัส 403 ทันที)
+                  </li>
                   <li>
                     สร้างสิทธิ์ในหัวข้อ <strong className="text-white">Credentials &gt; Create Credentials &gt; OAuth client ID</strong> เลือกประเภทแอปพลิเคชันเป็น <strong className="text-white">"Web application"</strong>
                   </li>
@@ -1936,12 +1939,44 @@ export default function App() {
                     คัดลอกรหัส <code className="bg-slate-950 text-slate-300 px-1 py-0.5 rounded font-mono">CLIENT_ID</code> และ <code className="bg-slate-950 text-slate-300 px-1 py-0.5 rounded font-mono">CLIENT_SECRET</code>
                   </li>
                   <li>
-                    เพื่อความง่ายที่สุดในการออก Refresh Token สิทธิ์อัปโหลดถาวร ให้ไปที่ <a href="https://developers.google.com/oauthplayground" target="_blank" rel="noopener noreferrer" className="text-orange-500 underline inline-flex items-center gap-1 font-bold">OAuth 2.0 Playground <ExternalLink className="w-3 h-3" /></a>
+                    เพื่อออก Refresh Token สิทธิ์อัปโหลด ให้ไปที่เว็บโปรดักต์ <a href="https://developers.google.com/oauthplayground" target="_blank" rel="noopener noreferrer" className="text-orange-500 underline inline-flex items-center gap-1 font-bold">OAuth 2.0 Playground <ExternalLink className="w-3 h-3" /></a>
                   </li>
-                  <li>
-                    ป้อนสโคปขวาล่าง: <code className="bg-slate-950 text-orange-400 px-1 py-0.5 rounded">https://www.googleapis.com/auth/youtube.upload</code> แล้วทำการคลิกยินยอมด้วยบัญชีช่อง YouTube ของคุณเพื่อดึงค่า <strong className="text-emerald-400 font-mono">Refresh Token</strong>
+                  <li className="bg-orange-500/5 border border-orange-500/10 p-2.5 rounded-xl">
+                    <strong className="text-orange-400 font-bold">⚡️ วิธีเลี่ยงสิทธิ์หลุดใน OAuth Playground:</strong> 
+                    <br />1. กดที่ <strong className="text-white">ไอคอนรูปเฟือง (Settings)</strong> ขวากลาง/ขวาบนของหน้าจอ
+                    <br />2. ติ๊กเลือก <strong className="text-emerald-400 font-bold">"Use your own OAuth credentials"</strong>
+                    <br />3. ใส่ <strong className="text-white">OAuth Client ID</strong> และ <strong className="text-white">OAuth Client Secret</strong> ของคุณที่ได้จากข้อ 5 ลงไปในสองช่องนั้น แล้วกด Close
+                    <br />4. ที่ฝั่งซ้ายของหน้าจอ ป้อนสโคปในช่อง Input: <code className="bg-slate-950 text-orange-400 px-1 py-0.5 rounded">https://www.googleapis.com/auth/youtube.upload</code> แล้วกดปุ่มสีน้ำเงิน <strong className="text-white">"Authorize APIs"</strong>
+                    <br />5. กดกดยินยอมรับสิทธิ์ด้วยบัญชี YouTube ของคุณ แล้วกดปุ่ม <strong className="text-white">"Exchange authorization code for tokens"</strong> เพื่อแปลงรหัสเป็น <strong className="text-emerald-400 font-mono">Refresh Token</strong> สิทธิ์แท้ของคุณเอง!
                   </li>
                 </ol>
+              </div>
+
+              {/* Gemini Quota / Credits Notice */}
+              <div className="bg-slate-950 rounded-2xl border border-slate-800 p-6 space-y-4">
+                <h3 className="text-sm font-bold text-orange-500 uppercase tracking-widest font-mono flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4 text-orange-500" />
+                  <span>คำอธิบายเกี่ยวกับปัญหาเครดิต Gemini API หมด (429 RESOURCE_EXHAUSTED)</span>
+                </h3>
+                <p className="text-xs text-slate-300 leading-relaxed">
+                  หากพบข้อความแจ้งเตือนสีแดงในหน้ารันงานระบุว่า <code className="text-red-400 font-mono">"Your prepayment credits are depleted..."</code> หรือเกิดข้อผิดพลาดรหัส <strong className="text-red-400">429 (Resource Exhausted)</strong> หมายความว่าบัญชี Google AI Studio ของคุณไม่มีวงเงินเครดิตคงเหลือเพื่อใช้งานระบบ AI เจเนอเรตคำอธิบายสินค้าและหน้าปกแบบอัตโนมัติ
+                </p>
+                <div className="text-xs text-slate-400 leading-relaxed space-y-2">
+                  <p>
+                    📌 <strong>ทางเลือกและแนวทางแก้ไข:</strong>
+                  </p>
+                  <ul className="list-disc pl-5 space-y-1.5 text-slate-300">
+                    <li>
+                      <strong>ใช้สิทธิ์จำลอง (Simulation Mode)</strong>: ปล่อยฟิลด์ API Key และ YouTube ให้ว่างเปล่า ระบบจะสลับไปใช้ระบบเขียนสคริปต์กวนๆ และรูปภาพเนื้อเรื่องตัวละครไทยท้องถิ่นสุดตลกแบบออฟไลน์โดยอัตโนมัติ ทำให้รันโปรเจกต์และสร้างสรรค์ผลงานทดสอบได้ทันทีโดยไม่ต้องใช้เครดิตใดๆ!
+                    </li>
+                    <li>
+                      <strong>เติมเงินใน Google AI Studio</strong>: เข้าไปที่หน้าบัญชีของคุณที่ <a href="https://aistudio.google.com/projects" target="_blank" rel="noopener noreferrer" className="text-orange-500 underline font-bold">Google AI Studio Settings</a> เพื่อทำการตรวจสอบและเติมเครดิตแบบ Prepay บิลเรียกเก็บเงิน เพื่อเปิดใช้งานโควตาปกติ
+                    </li>
+                    <li>
+                      <strong>ใช้ Gemini API Key คีย์อื่น</strong>: หากคุณมีบัญชีจีเมลอื่น สามารถสมัครคีย์ฟรีและนำมาอัปเดตลงในช่อง "Gemini API Key" ในหน้าจอด้านบนได้เลย
+                    </li>
+                  </ul>
+                </div>
               </div>
 
               {/* ENV Configuration panel */}

@@ -12,8 +12,16 @@ const execAsync = promisify(exec);
 // Load environment variables
 dotenv.config();
 
+// Prevent crashes due to background unhandled promise rejections or uncaught exceptions
+process.on("unhandledRejection", (reason, promise) => {
+  console.error("🚨 Unhandled Rejection at:", promise, "reason:", reason);
+});
+process.on("uncaughtException", (err) => {
+  console.error("🚨 Uncaught Exception thrown:", err);
+});
+
 const app = express();
-const PORT = 3000;
+const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
 
 app.use(express.json());
 app.use("/src/assets/images", express.static(path.join(process.cwd(), "src", "assets", "images")));
