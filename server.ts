@@ -636,17 +636,49 @@ async function downloadImageIfNeeded(urlOrPath: string): Promise<string> {
     const tempFilePath = path.join(tempDir, `bg_${urlHash}.jpg`);
     
     try {
-      await fs.access(tempFilePath);
-      console.log(`ℹ️ [BG-CACHE] Using existing cached image: ${tempFilePath}`);
-      return tempFilePath;
+      const buf = await fs.readFile(tempFilePath);
+      if (buf.length > 4 && (
+        (buf[0] === 0xff && buf[1] === 0xd8 && buf[2] === 0xff) || // JPEG
+        (buf[0] === 0x89 && buf[1] === 0x50 && buf[2] === 0x4e && buf[3] === 0x47) || // PNG
+        (buf[0] === 0x52 && buf[1] === 0x49 && buf[2] === 0x46 && buf[3] === 0x46) // WEBP/RIFF
+      )) {
+        console.log(`ℹ️ [BG-CACHE] Using existing cached image: ${tempFilePath}`);
+        return tempFilePath;
+      }
+      console.warn(`⚠️ [BG-CACHE] Cached image is invalid or corrupted. Unlinking...`);
+      await fs.unlink(tempFilePath).catch(() => {});
     } catch {
-      console.log(`📥 [BG-DOWNLOAD] Downloading image from URL: ${urlOrPath}`);
-      const res = await fetch(urlOrPath);
+      // Proceed to download
+    }
+    
+    console.log(`📥 [BG-DOWNLOAD] Downloading image from URL: ${urlOrPath}`);
+    try {
+      const res = await fetch(urlOrPath, {
+        headers: {
+          "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+          "Accept": "image/jpeg,image/png,image/webp,image/*,*/*"
+        }
+      });
       if (!res.ok) throw new Error(`HTTP error ${res.status}`);
       const arrayBuffer = await res.arrayBuffer();
-      await fs.writeFile(tempFilePath, Buffer.from(arrayBuffer));
+      const buf = Buffer.from(arrayBuffer);
+      
+      const isJpeg = buf.length > 2 && buf[0] === 0xff && buf[1] === 0xd8 && buf[2] === 0xff;
+      const isPng = buf.length > 3 && buf[0] === 0x89 && buf[1] === 0x50 && buf[2] === 0x4e && buf[3] === 0x47;
+      const isWebp = buf.length > 3 && buf[0] === 0x52 && buf[1] === 0x49 && buf[2] === 0x46 && buf[3] === 0x46; // RIFF/WEBP
+      
+      if (!isJpeg && !isPng && !isWebp) {
+        const hexStart = buf.slice(0, 10).toString("hex");
+        const textStart = buf.slice(0, 100).toString("utf-8");
+        throw new Error(`Downloaded content is not a valid image (starts with hex: ${hexStart}, text: ${textStart.substring(0, 50)})`);
+      }
+      
+      await fs.writeFile(tempFilePath, buf);
       console.log(`✅ [BG-DOWNLOAD] Image downloaded to: ${tempFilePath}`);
       return tempFilePath;
+    } catch (err: any) {
+      console.error(`❌ [BG-DOWNLOAD] Failed to download image from ${urlOrPath}: ${err.message}`);
+      throw err;
     }
   }
   
@@ -663,6 +695,12 @@ async function generateShortsVideoFromCover(product: any, cover: any): Promise<s
   // 1. Resolve Background Image
   let bgSource = "";
   const nameLower = (product.name || "").toLowerCase();
+  
+  let localFallbackBg = path.join(process.cwd(), "src", "assets", "images", "thai_mic_wife_shorts_1784280660439.jpg");
+  if (nameLower.includes("กาแฟ") || nameLower.includes("coffee") || nameLower.includes("espresso")) {
+    localFallbackBg = path.join(process.cwd(), "src", "assets", "images", "thai_coffee_stray_shorts_1784280646086.jpg");
+  }
+
   if (nameLower.includes("กาแฟ") || nameLower.includes("coffee") || nameLower.includes("espresso")) {
     bgSource = path.join(process.cwd(), "src", "assets", "images", "thai_coffee_stray_shorts_1784280646086.jpg");
   } else if (nameLower.includes("ไมโครโฟน") || nameLower.includes("microphone") || nameLower.includes("sound")) {
@@ -677,7 +715,13 @@ async function generateShortsVideoFromCover(product: any, cover: any): Promise<s
     bgSource = "https://picsum.photos/seed/thaiportraitpic/600/1066";
   }
 
-  const localBgPath = await downloadImageIfNeeded(bgSource);
+  let localBgPath = localFallbackBg;
+  try {
+    localBgPath = await downloadImageIfNeeded(bgSource);
+  } catch (err: any) {
+    console.warn(`⚠️ [VIDEO-GEN] Background image download/validation failed (${err.message}). Using secure local fallback: ${localFallbackBg}`);
+    localBgPath = localFallbackBg;
+  }
   
   // Create output directories
   const tempDir = path.join(process.cwd(), "src", "db", "temp");
@@ -779,7 +823,36 @@ async function generateShortsVideoFromCover(product: any, cover: any): Promise<s
     "${pngPath}"`;
 
   console.log(`🎨 [VIDEO-GEN] Generating compiled layout PNG to: ${pngPath}`);
-  await execAsync(convertCmd);
+  let convertSucceeded = false;
+  try {
+    await execAsync(convertCmd);
+    convertSucceeded = true;
+  } catch (err: any) {
+    console.warn(`⚠️ [VIDEO-GEN] ImageMagick compilation failed with original background: ${err.message}. Retrying with reliable local fallback image...`);
+    
+    // If we used a downloaded background, retry convertCmd with localFallbackBg instead!
+    if (localBgPath !== localFallbackBg) {
+      try {
+        const fallbackConvertCmd = convertCmd.replace(new RegExp(`"${localBgPath}"`, 'g'), `"${localFallbackBg}"`);
+        console.log(`🔄 [VIDEO-GEN] Retrying convert with local fallback: ${localFallbackBg}`);
+        await execAsync(fallbackConvertCmd);
+        convertSucceeded = true;
+      } catch (retryErr: any) {
+        console.error(`❌ [VIDEO-GEN] Retry convert with local fallback also failed: ${retryErr.message}`);
+      }
+    }
+  }
+
+  // Fallback if ImageMagick convert failed entirely (e.g. missing package or font errors)
+  if (!convertSucceeded) {
+    console.error(`🚨 [VIDEO-GEN] ImageMagick is failing completely. Generating video directly from fallback image "${localFallbackBg}" using pure FFmpeg...`);
+    // Compile directly using FFmpeg from the fallback image to bypass ImageMagick completely!
+    const ffmpegFallbackCmd = `ffmpeg -y -loop 1 -i "${localFallbackBg}" -f lavfi -i anullsrc=channel_layout=stereo:sample_rate=44100 -t 10 -c:v libx264 -pix_fmt yuv420p -vf "scale=1080:1920" -r 30 -c:a aac -shortest "${mp4Path}"`;
+    console.log(`📹 [VIDEO-GEN] Converting raw fallback background directly to 10s vertical MP4: ${mp4Path}`);
+    await execAsync(ffmpegFallbackCmd);
+    console.log(`✅ [VIDEO-GEN] Pure-FFmpeg fallback video generated successfully: ${mp4Path}`);
+    return mp4Path;
+  }
   
   // 3. Compile MP4 using ffmpeg with silent audio track
   const ffmpegCmd = `ffmpeg -y -loop 1 -i "${pngPath}" -f lavfi -i anullsrc=channel_layout=stereo:sample_rate=44100 -t 10 -c:v libx264 -pix_fmt yuv420p -vf "scale=1080:1920" -r 30 -c:a aac -shortest "${mp4Path}"`;
