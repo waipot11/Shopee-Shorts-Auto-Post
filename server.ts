@@ -599,9 +599,13 @@ function getRealisticFallbackVideo(productId: string, productName: string): stri
 // 4. Custom API for YouTube Shorts upload
 async function uploadToYouTubeShorts(title: string, description: string, videoUrl: string, productId: string = "", productName: string = "") {
   const config = await readConfig();
-  const clientId = config.youtubeClientId || process.env.YOUTUBE_CLIENT_ID;
-  const clientSecret = config.youtubeClientSecret || process.env.YOUTUBE_CLIENT_SECRET;
-  const refreshToken = config.youtubeRefreshToken || process.env.YOUTUBE_REFRESH_TOKEN;
+  const rawClientId = config.youtubeClientId || process.env.YOUTUBE_CLIENT_ID || "";
+  const rawClientSecret = config.youtubeClientSecret || process.env.YOUTUBE_CLIENT_SECRET || "";
+  const rawRefreshToken = config.youtubeRefreshToken || process.env.YOUTUBE_REFRESH_TOKEN || "";
+
+  const clientId = typeof rawClientId === "string" ? rawClientId.trim() : "";
+  const clientSecret = typeof rawClientSecret === "string" ? rawClientSecret.trim() : "";
+  const refreshToken = typeof rawRefreshToken === "string" ? rawRefreshToken.trim() : "";
 
   if (!clientId || !clientSecret || !refreshToken || 
       clientId.includes("YOUR") || clientSecret.includes("YOUR") || refreshToken.includes("YOUR") ||
@@ -635,6 +639,9 @@ async function uploadToYouTubeShorts(title: string, description: string, videoUr
 
     const tokenData = await tokenResponse.json();
     const accessToken = tokenData.access_token;
+    if (!accessToken) {
+      throw new Error(`Failed to refresh YouTube access token: No access_token was returned in Google's response: ${JSON.stringify(tokenData)}`);
+    }
     
     console.log("✅ YouTube Access Token refreshed successfully.");
     console.log("📥 Fetching Shorts video binary from source URL:", videoUrl);
@@ -767,6 +774,19 @@ async function uploadToYouTubeShorts(title: string, description: string, videoUr
     
     // Convert API errors to highly readable, helpful instructions
     let userFriendlyMessage = error.message || String(error);
+
+    // Parse nested Google API JSON errors if available
+    try {
+      const jsonMatch = userFriendlyMessage.match(/(\{[\s\S]*\})/);
+      if (jsonMatch) {
+        const parsed = JSON.parse(jsonMatch[1]);
+        if (parsed && parsed.error && parsed.error.message) {
+          userFriendlyMessage = `${parsed.error.message} (${parsed.error.status || "API_ERROR"})`;
+        }
+      }
+    } catch (e) {
+      // Ignore JSON parse error, fallback to original message
+    }
     
     if (userFriendlyMessage.includes("youtubeSignupRequired")) {
       userFriendlyMessage = "บัญชี Google ของคุณยังไม่มีช่อง YouTube (YouTube Channel)! กรุณาเข้าไปที่เว็บไซต์ https://studio.youtube.com หรือเปิดเว็บ YouTube ด้วยบัญชีนี้ แล้วคลิกปุ่ม 'สร้างช่อง' (Create Channel) เพื่อสมัครเปิดช่องก่อน จึงจะสามารถปล่อยคลิปผ่านระบบบอทของเว็บบัญชีนี้ได้";
@@ -904,11 +924,13 @@ app.post("/api/config", async (req, res) => {
   
   const config = await readConfig();
   
-  if (affiliateId !== undefined) config.affiliateId = affiliateId;
-  if (geminiApiKey !== undefined) config.geminiApiKey = geminiApiKey;
-  if (youtubeClientId !== undefined) config.youtubeClientId = youtubeClientId;
-  if (youtubeClientSecret !== undefined) config.youtubeClientSecret = youtubeClientSecret;
-  if (youtubeRefreshToken !== undefined) config.youtubeRefreshToken = youtubeRefreshToken;
+  const trimVal = (val: any) => typeof val === "string" ? val.trim() : val;
+  
+  if (affiliateId !== undefined) config.affiliateId = trimVal(affiliateId);
+  if (geminiApiKey !== undefined) config.geminiApiKey = trimVal(geminiApiKey);
+  if (youtubeClientId !== undefined) config.youtubeClientId = trimVal(youtubeClientId);
+  if (youtubeClientSecret !== undefined) config.youtubeClientSecret = trimVal(youtubeClientSecret);
+  if (youtubeRefreshToken !== undefined) config.youtubeRefreshToken = trimVal(youtubeRefreshToken);
 
   await writeConfig(config);
   
