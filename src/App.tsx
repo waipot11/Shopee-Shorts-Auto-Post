@@ -135,30 +135,75 @@ export default function App() {
     }, 4000);
   };
 
+  const safeFetchJson = async (url: string, options?: RequestInit) => {
+    try {
+      const res = await fetch(url, options);
+      const contentType = res.headers.get("content-type");
+      
+      if (res.ok) {
+        if (contentType && contentType.includes("application/json")) {
+          return await res.json();
+        }
+        return { success: true };
+      } else {
+        let errMsg = `เกิดข้อผิดพลาดในการดึงข้อมูล (${res.status})`;
+        if (contentType && contentType.includes("application/json")) {
+          try {
+            const errData = await res.json();
+            errMsg = errData.error || errMsg;
+          } catch (e) {
+            // Ignore error
+          }
+        } else {
+          try {
+            const textMsg = await res.text();
+            if (textMsg.includes("<pre>")) {
+              const match = textMsg.match(/<pre>([\s\S]*?)<\/pre>/);
+              if (match && match[1]) {
+                errMsg = match[1].trim();
+              }
+            } else if (textMsg && textMsg.length < 200) {
+              errMsg = textMsg;
+            } else if (res.status === 502 || res.status === 503 || res.status === 504) {
+              errMsg = "เซิร์ฟเวอร์หลังบ้านกำลังรีสตาร์ตหรือออฟไลน์ชั่วคราว กรุณารอ 5-10 วินาทีแล้วลองใหม่อีกครั้ง";
+            }
+          } catch (e) {
+            // Ignore error
+          }
+        }
+        throw new Error(errMsg);
+      }
+    } catch (err: any) {
+      if (err.message && (err.message.includes("Unexpected token") || err.message.includes("is not valid JSON") || err.message.includes("JSON.parse"))) {
+        throw new Error("เซิร์ฟเวอร์หลังบ้านกำลังรีสตาร์ตหรือออฟไลน์ชั่วคราว กรุณารอ 5-10 วินาทีแล้วลองใหม่อีกครั้ง");
+      }
+      throw err;
+    }
+  };
+
   // Fetch all initial data
   const fetchData = async () => {
     setIsLoading(true);
     try {
-      const [pRes, lRes, cRes] = await Promise.all([
-        fetch("/api/products"),
-        fetch("/api/logs"),
-        fetch("/api/config")
+      const [pData, lData, cData] = await Promise.all([
+        safeFetchJson("/api/products"),
+        safeFetchJson("/api/logs"),
+        safeFetchJson("/api/config")
       ]);
 
-      if (pRes.ok) setProducts(await pRes.json());
-      if (lRes.ok) setLogs(await lRes.json());
-      if (cRes.ok) {
-        const configData = await cRes.json();
-        setConfig(configData);
-        setShopeeInput(configData.affiliateId);
-        setGeminiApiKeyInput(configData.geminiApiKey || "");
-        setYoutubeClientIdInput(configData.youtubeClientId || "");
-        setYoutubeClientSecretInput(configData.youtubeClientSecret || "");
-        setYoutubeRefreshTokenInput(configData.youtubeRefreshToken || "");
+      if (pData) setProducts(pData);
+      if (lData) setLogs(lData);
+      if (cData) {
+        setConfig(cData);
+        setShopeeInput(cData.affiliateId || "");
+        setGeminiApiKeyInput(cData.geminiApiKey || "");
+        setYoutubeClientIdInput(cData.youtubeClientId || "");
+        setYoutubeClientSecretInput(cData.youtubeClientSecret || "");
+        setYoutubeRefreshTokenInput(cData.youtubeRefreshToken || "");
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error fetching database information:", error);
-      showNotification("ไม่สามารถดึงข้อมูลจากเซิร์ฟเวอร์หลังบ้านได้", "error");
+      showNotification(`ไม่สามารถดึงข้อมูลได้: ${error.message || "เกิดข้อผิดพลาด"}`, "error");
     } finally {
       setIsLoading(false);
     }
@@ -176,7 +221,7 @@ export default function App() {
     }
     setIsSavingConfig(true);
     try {
-      const res = await fetch("/api/config", {
+      const data = await safeFetchJson("/api/config", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ 
@@ -187,29 +232,25 @@ export default function App() {
           youtubeRefreshToken: youtubeRefreshTokenInput
         })
       });
-      if (res.ok) {
-        const data = await res.json();
-        const updated = data.config;
-        setConfig(prev => ({ 
-          ...prev, 
-          affiliateId: updated.affiliateId,
-          geminiApiKey: updated.geminiApiKey,
-          youtubeClientId: updated.youtubeClientId,
-          youtubeClientSecret: updated.youtubeClientSecret,
-          youtubeRefreshToken: updated.youtubeRefreshToken,
-          hasGemini: !!updated.geminiApiKey,
-          hasYoutubeClientId: !!updated.youtubeClientId,
-          hasYoutubeClientSecret: !!updated.youtubeClientSecret,
-          hasYoutubeRefreshToken: !!updated.youtubeRefreshToken,
-          activeMode: (updated.youtubeClientId && updated.youtubeClientSecret && updated.youtubeRefreshToken) ? "REAL_YOUTUBE" : "SIMULATION"
-        }));
-        showNotification("บันทึกการตั้งค่าเรียบร้อยแล้ว!");
-        fetchData();
-      } else {
-        throw new Error();
-      }
-    } catch (err) {
-      showNotification("เกิดข้อผิดพลาดในการบันทึกค่า", "error");
+      
+      const updated = data.config;
+      setConfig(prev => ({ 
+        ...prev, 
+        affiliateId: updated.affiliateId,
+        geminiApiKey: updated.geminiApiKey,
+        youtubeClientId: updated.youtubeClientId,
+        youtubeClientSecret: updated.youtubeClientSecret,
+        youtubeRefreshToken: updated.youtubeRefreshToken,
+        hasGemini: !!updated.geminiApiKey,
+        hasYoutubeClientId: !!updated.youtubeClientId,
+        hasYoutubeClientSecret: !!updated.youtubeClientSecret,
+        hasYoutubeRefreshToken: !!updated.youtubeRefreshToken,
+        activeMode: (updated.youtubeClientId && updated.youtubeClientSecret && updated.youtubeRefreshToken) ? "REAL_YOUTUBE" : "SIMULATION"
+      }));
+      showNotification("บันทึกการตั้งค่าเรียบร้อยแล้ว!");
+      fetchData();
+    } catch (err: any) {
+      showNotification(err.message || "เกิดข้อผิดพลาดในการบันทึกค่า", "error");
     } finally {
       setIsSavingConfig(false);
     }
@@ -219,15 +260,11 @@ export default function App() {
   const handleDeleteProduct = async (id: string) => {
     if (!confirm("คุณต้องการลบคลิปสินค้าตัวนี้ออกจากคลังหรือไม่?")) return;
     try {
-      const res = await fetch(`/api/products/${id}`, { method: "DELETE" });
-      if (res.ok) {
-        setProducts(prev => prev.filter(p => p.id !== id));
-        showNotification("ลบสินค้าออกจากคลังเรียบร้อยแล้ว");
-      } else {
-        throw new Error();
-      }
-    } catch (err) {
-      showNotification("ลบไม่สำเร็จ กรุณาลองใหม่อีกครั้ง", "error");
+      await safeFetchJson(`/api/products/${id}`, { method: "DELETE" });
+      setProducts(prev => prev.filter(p => p.id !== id));
+      showNotification("ลบสินค้าออกจากคลังเรียบร้อยแล้ว");
+    } catch (err: any) {
+      showNotification(err.message || "ลบไม่สำเร็จ กรุณาลองใหม่อีกครั้ง", "error");
     }
   };
 
@@ -304,7 +341,7 @@ export default function App() {
 
     setIsGeneratingCoverText(true);
     try {
-      const res = await fetch("/api/generate-cover", {
+      const data = await safeFetchJson("/api/generate-cover", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -314,22 +351,17 @@ export default function App() {
         })
       });
 
-      if (res.ok) {
-        const data = await res.json();
-        if (data.success && data.cover) {
-          setCoverTitle(data.cover.titleOverlay || "หัวข้อกวนๆ");
-          setCoverSubtitle(data.cover.modelSubtitle || "คำสั้นในใจ");
-          setCoverPlotTwist(data.cover.plotTwist || "สรุปหักมุม");
-          setCoverStamp(data.cover.stampText || "ป้ายเหลือง");
-          showNotification("🪄 ครีเอทคำปกสุดกวนและมุกหักมุมโดย Gemini สำเร็จแล้ว!");
-        } else {
-          throw new Error();
-        }
+      if (data.success && data.cover) {
+        setCoverTitle(data.cover.titleOverlay || "หัวข้อกวนๆ");
+        setCoverSubtitle(data.cover.modelSubtitle || "คำสั้นในใจ");
+        setCoverPlotTwist(data.cover.plotTwist || "สรุปหักมุม");
+        setCoverStamp(data.cover.stampText || "ป้ายเหลือง");
+        showNotification("🪄 ครีเอทคำปกสุดกวนและมุกหักมุมโดย Gemini สำเร็จแล้ว!");
       } else {
-        throw new Error();
+        throw new Error("ข้อมูลปกไม่ถูกต้อง");
       }
-    } catch (err) {
-      showNotification("เกิดข้อผิดพลาดในการคิดคำปก กรุณาลองใหม่อีกครั้ง", "error");
+    } catch (err: any) {
+      showNotification(`เกิดข้อผิดพลาด: ${err.message || "ไม่สามารถคิดคำปกได้"}`, "error");
     } finally {
       setIsGeneratingCoverText(false);
     }
@@ -345,7 +377,7 @@ export default function App() {
 
     setIsSavingCover(true);
     try {
-      const res = await fetch("/api/products/save-cover", {
+      const data = await safeFetchJson("/api/products/save-cover", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -359,17 +391,11 @@ export default function App() {
         })
       });
 
-      if (res.ok) {
-        const data = await res.json();
-        showNotification(data.message || "บันทึกการส่งภาพปกเสร็จสมบูรณ์!");
-        
-        // Refresh products list
-        const pRes = await fetch("/api/products");
-        if (pRes.ok) setProducts(await pRes.json());
-      } else {
-        const errData = await res.json();
-        throw new Error(errData.error || "บันทึกไม่สำเร็จ");
-      }
+      showNotification(data.message || "บันทึกการส่งภาพปกเสร็จสมบูรณ์!");
+      
+      // Refresh products list
+      const pData = await safeFetchJson("/api/products");
+      if (pData) setProducts(pData);
     } catch (err: any) {
       showNotification(err.message || "เกิดข้อผิดพลาดในการบันทึก", "error");
     } finally {
@@ -434,27 +460,22 @@ export default function App() {
       const method = editingProduct ? "PUT" : "POST";
       const url = editingProduct ? `/api/products/${editingProduct.id}` : "/api/products";
       
-      const res = await fetch(url, {
+      const savedProduct = await safeFetchJson(url, {
         method,
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(productForm)
       });
 
-      if (res.ok) {
-        const savedProduct = await res.json();
-        if (editingProduct) {
-          setProducts(prev => prev.map(p => p.id === savedProduct.id ? savedProduct : p));
-          showNotification("อัปเดตข้อมูลสินค้าในคลังแล้ว");
-        } else {
-          setProducts(prev => [...prev, savedProduct]);
-          showNotification("เพิ่มสินค้าเข้าสู่คลังเก็บข้อมูลสำเร็จ!");
-        }
-        setShowProductModal(false);
+      if (editingProduct) {
+        setProducts(prev => prev.map(p => p.id === savedProduct.id ? savedProduct : p));
+        showNotification("อัปเดตข้อมูลสินค้าในคลังแล้ว");
       } else {
-        throw new Error();
+        setProducts(prev => [...prev, savedProduct]);
+        showNotification("เพิ่มสินค้าเข้าสู่คลังเก็บข้อมูลสำเร็จ!");
       }
-    } catch (err) {
-      showNotification("เกิดข้อผิดพลาดในการบันทึกข้อมูลสินค้า", "error");
+      setShowProductModal(false);
+    } catch (err: any) {
+      showNotification(err.message || "เกิดข้อผิดพลาดในการบันทึกข้อมูลสินค้า", "error");
     }
   };
 
@@ -488,22 +509,16 @@ export default function App() {
           setTriggerStep(4); // Step 4: Connecting YouTube Shorts Upload API
           
           try {
-            const response = await fetch("/api/trigger-post", { method: "POST" });
-            if (response.ok) {
-              const data = await response.json();
-              setLastPostedLog(data.log);
-              setLogs(prev => [data.log, ...prev]);
-              
-              if (data.log.status === "FAILED") {
-                setTriggerStep(-1); // Set to Error/Failed step
-                showNotification(`โพสต์ล้มเหลว: ${data.log.statusMessage || "เกิดข้อผิดพลาดในการเชื่อมต่อ YouTube API"}`, "error");
-              } else {
-                setTriggerStep(5); // Step 5: Finished
-                showNotification("ระบบอัปโหลดอัตโนมัติทำงานสำเร็จ!");
-              }
+            const data = await safeFetchJson("/api/trigger-post", { method: "POST" });
+            setLastPostedLog(data.log);
+            setLogs(prev => [data.log, ...prev]);
+            
+            if (data.log.status === "FAILED") {
+              setTriggerStep(-1); // Set to Error/Failed step
+              showNotification(`โพสต์ล้มเหลว: ${data.log.statusMessage || "เกิดข้อผิดพลาดในการเชื่อมต่อ YouTube API"}`, "error");
             } else {
-              const errData = await response.json();
-              throw new Error(errData.error || "เกิดข้อผิดพลาดจาก API");
+              setTriggerStep(5); // Step 5: Finished
+              showNotification("ระบบอัปโหลดอัตโนมัติทำงานสำเร็จ!");
             }
           } catch (error: any) {
             console.error(error);
@@ -533,26 +548,20 @@ export default function App() {
           setTriggerStep(4); // Step 4: Connecting YouTube Shorts Upload API
           
           try {
-            const response = await fetch("/api/trigger-post", { 
+            const data = await safeFetchJson("/api/trigger-post", { 
               method: "POST",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({ productId })
             });
-            if (response.ok) {
-              const data = await response.json();
-              setLastPostedLog(data.log);
-              setLogs(prev => [data.log, ...prev]);
-              
-              if (data.log.status === "FAILED") {
-                setTriggerStep(-1); // Set to Error/Failed step
-                showNotification(`โพสต์ล้มเหลว: ${data.log.statusMessage || "เกิดข้อผิดพลาดในการเชื่อมต่อ YouTube API"}`, "error");
-              } else {
-                setTriggerStep(5); // Step 5: Finished
-                showNotification("ระบบอัปโหลดอัตโนมัติทำงานสำเร็จ!");
-              }
+            setLastPostedLog(data.log);
+            setLogs(prev => [data.log, ...prev]);
+            
+            if (data.log.status === "FAILED") {
+              setTriggerStep(-1); // Set to Error/Failed step
+              showNotification(`โพสต์ล้มเหลว: ${data.log.statusMessage || "เกิดข้อผิดพลาดในการเชื่อมต่อ YouTube API"}`, "error");
             } else {
-              const errData = await response.json();
-              throw new Error(errData.error || "เกิดข้อผิดพลาดจาก API");
+              setTriggerStep(5); // Step 5: Finished
+              showNotification("ระบบอัปโหลดอัตโนมัติทำงานสำเร็จ!");
             }
           } catch (error: any) {
             console.error(error);
