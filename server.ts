@@ -142,20 +142,12 @@ async function getGeminiClient() {
   const config = await readConfig();
   const apiKey = config.geminiApiKey || process.env.GEMINI_API_KEY;
   if (!apiKey || apiKey === "MY_GEMINI_API_KEY" || apiKey === "") {
-    // Return null to trigger fallback or simulation warnings
     return null;
   }
-  return new GoogleGenAI({
-    apiKey: apiKey,
-    httpOptions: {
-      headers: {
-        "User-Agent": "aistudio-build",
-      },
-    },
-  });
+  return new GoogleGenAI({ apiKey });
 }
 
-// 3. AI Caption & Script Generator (Gemini-3.5-flash)
+// 3. AI Caption, 5-Scene Script, and Cover Generators (Gemini-3.5-flash)
 async function generateContentWithGemini(productName: string, productDesc: string, affiliateLink: string) {
   const ai = await getGeminiClient();
   
@@ -164,13 +156,20 @@ async function generateContentWithGemini(productName: string, productDesc: strin
     return generateSimulatedAIResponse(productName, productDesc, affiliateLink);
   }
 
-  const systemInstruction = `คุณเป็นนักคิดก็อปปี้ไรท์เตอร์โฆษณา (Copywriter) ครีเอทีฟโฆษณา และนายหน้า Shopee สายตลก แสบๆ กวนๆ ตลกหักมุม (Plot Twist) ที่เก่งที่สุดในการดันยอดขายผ่าน YouTube Shorts ของประเทศไทย
-  หน้าที่ของคุณคือการคิดข้อความโฆษณาสำหรับสินค้าชิ้นนี้ โดยเน้นที่ความสนุกสนาน มุกตลกเสียดสี มุกหักมุมสุดพีค (Plot Twist) ความแปลกใหม่ และกระตุ้นให้คนดูอยากซื้อจริง 100%
+  const systemInstruction = `คุณเป็นนักคิดก็อปปี้ไรท์เตอร์โฆษณา (Copywriter) ครีเอทีฟผู้เขียนบทร่างภาพยนตร์ และนายหน้า Shopee สายตลก แสบๆ กวนๆ ตลกหักมุม (Plot Twist) ที่เก่งที่สุดในการดันยอดขายผ่าน YouTube Shorts ของประเทศไทย
+  หน้าที่ของคุณคือการคิดข้อความโฆษณาและเขียนบทร่างภาพยนตร์แบบบทละครสั้นจำนวน 5 ฉาก ฉากละ 10 วินาที (รวม 50 วินาที) ที่มีความยาวและเนื้อหาสัมพันธ์กับสินค้า โดยฉากสุดท้ายต้องหักมุมสุดปั่น ค้างคาใจจนคนดูอยากคลิกซื้อทันที 100%
   
-  กฎสำคัญในการเขียนเนื้อหา:
-  1. ต้องมีมุกตลกหักมุม (Plot Twist) เสมอ เช่น อวยสินค้าข้อดีแทบตาย แต่จบด้วยข้อจำกัดฮาๆ บ่นชีวิต หรือความจริงสุดปั่น เช่น ซื้อเครื่องชงกาแฟพกพามาบีบจนมือหักกล้ามขึ้น แต่ไม่ได้กินกาแฟ ต้องเดินเข้าร้านคาเฟ่แทน
-  2. สคริปต์พูด (purchaseScript) สำหรับลงเสียงบรรยาย 15 วินาที ต้องตลก ดึงดูดความสนใจ ยิงมุกหักมุมช่วงกลางหรือปลายสคริปต์อย่างแสบสัน
-  3. หลีกเลี่ยงการเขียนแบบทางการหรือน่าเบื่อโดยสิ้นเชิง ให้เขียนสไตล์กวนๆ ยิงมุกขำขันโดนใจคนไทยวัยรุ่น-วัยทำงาน`;
+  คุณต้องเลือกตัวละครหลัก 1 ใน 3 ตัวละครต่อไปนี้เพื่อสวมบทแสดงตลอดทั้งคลิปอย่างสมเหตุสมผล:
+  1. ลุงเฉลียว (Chaleo) - คุณลุงชาวไทยอายุ 68 ปี ใจดี อารมณ์ดี อบอุ่น มีรอยยิ้ม สวมเสื้อเชิ้ตลายสก็อตสีส้ม แว่นสายตากลอบกลมสีดำ ผมสีเทาหงอกประปรายคนซื่อ
+  2. กวิน (Kawin) - ชายหนุ่มมาดเท่ วัย 28 ปี บุคลิกดูดีแบบนักกีฬา ผิวสีแทน แว่นกันแดดทรงสปอร์ต ทรงผมสั้นเฟดด้านข้าง สวมเสื้อยืดสีดำรัดรูปฟิตเนส
+  3. พิมมี่ (Pimmy) - หญิงสาวสวยหรูหรา วัย 24 ปี เปี่ยมด้วยจริตการขายระดับมืออาชีพ สวมต่างหูมุกสีขาววับวับ ผมยาวดัดลอนสีบรอนด์ทอง สวมแจ็กเก็ตสีชมพูพาสเทลแบรนด์เนมแสนแพง
+  
+  กฎเหล็กในการสร้างสรรค์ฉากภาพวาดสำหรับ Google Imagen 3 (ห้ามฝ่าฝืน):
+  - ห้ามใส่โค้ด --cref, --sref หรือรหัสรบกวนอื่นๆ ของ Midjourney อย่างเด็ดขาด เนื่องจากทำให้ Google Imagen สับสนและแสดงผลเป็นเศษตัวอักษรขยะรบกวน
+  - ต้องล็อครายละเอียดของตัวละครที่เลือก (ทรงผม, ใบหน้า, แว่นตา, เสื้อผ้า) ให้สม่ำเสมอในทุกๆ ฉาก ป้องกันการวาดสลับเป็นสิ่งอื่นๆ
+  - ต้องระบุรายละเอียดของภาพให้สมจริงระดับภาพถ่ายจริง Cinematic (Photorealistic), high-fidelity, แสงเงาสวยงาม มีมิติ ไม่มีความผิดเพี้ยน
+  - ห้ามวาดในลักษณะรูปการ์ตูน สัตว์ประหลาด หรือสิ่งแปลกปลอมใดๆ และห้ามมีตัวหนังสือใดๆ ปรากฏในรูปเด็ดขาด
+  - สรุปรายละเอียดวิดีโอระดับ 2K (1440x2560 พิกเซล) และใส่เทคนิค Ken Burns Effect เพื่อให้ตัวคลิปซูมและแพนช้าๆ ไปยังกึ่งกลางภาพสวยสะกดสายตา`;
 
   const prompt = `ช่วยเขียนคอนเทนต์รีวิวสินค้าเพื่อโพสต์ YouTube Shorts สำหรับสินค้าชิ้นนี้:
   ชื่อสินค้า: "${productName}"
@@ -180,7 +179,12 @@ async function generateContentWithGemini(productName: string, productDesc: strin
   กรุณาส่งกลับมาเป็นรูปแบบ JSON ตามโครงสร้างด้านล่าง:
   - youtubeTitle: หัวข้อคลิป Shorts (ยาวไม่เกิน 100 ตัวอักษร) ดึงดูดความสนใจขั้นสุด มีอีโมจิกวนๆ และแฮชแท็กหลัก
   - youtubeCaption: แคปชันที่จะใส่ในคำอธิบายคลิป (Description) เขียนสไตล์รีวิวตลกขบขัน ฮาๆ บ่นชีวิต หรือมุกแสบๆ มีพอยต์ชี้ข้อดี/ข้อเสียแบบกวนๆ พร้อมปักลิงก์นายหน้าท้ายแคปชันอย่างเด่นชัด มีแฮชแท็กครบถ้วน
-  - purchaseScript: สคริปต์สำหรับนำไปลงเสียง/พูดประกอบคลิปความยาว 15 วินาที สไตล์รีวิวเรียลๆ ปั่นๆ`;
+  - purchaseScript: สคริปต์พูดภาพรวม 50 วินาทีสำหรับบรรยายคลิปสั้น ปั่นๆ กวนๆ
+  - scenes: อาร์เรย์ของฉากละครสั้นจำนวน 5 ฉาก (ฉากละ 10 วินาทีพอดี) โดยแต่ละชิ้นมี:
+    - sceneNumber: หมายเลขฉาก (1 ถึง 5)
+    - visualPrompt: คำสั่งสร้างรูปด้วย Google Imagen 3 ภาษาอังกฤษที่ล็อคสไตล์ตัวละครตัวใดตัวหนึ่ง (ลุงเฉลียว, กวิน, หรือพิมมี่) ไร้โค้ด --cref และมีสไตล์ภาพจริง Cinematic high-fidelity ไร้ตัวหนังสือ
+    - narration: คำพูดบรรยายภาษาไทยสำหรับฉากนี้ความยาว 10 วินาที (ตลกขำขัน สัมพันธ์กับภาพและหักมุมในฉากที่ 5)
+    - duration: ตัวเลขอายุฉากคือ 10`;
 
   try {
     const response = await ai.models.generateContent({
@@ -194,9 +198,23 @@ async function generateContentWithGemini(productName: string, productDesc: strin
           properties: {
             youtubeTitle: { type: Type.STRING, description: "หัวข้อคลิปภาษาไทย ไม่เกิน 100 ตัวอักษร ชวนกดคลิก มีอีโมจิและแฮชแท็ก" },
             youtubeCaption: { type: Type.STRING, description: "แคปชันคำอธิบายคลิปสไตล์สายตลก ฮาๆ รวมลิงก์สินค้าและแฮชแท็กอย่างสวยงาม" },
-            purchaseScript: { type: Type.STRING, description: "สคริปต์พูด 15 วินาทีสำหรับบรรยายคลิปสั้น ปั่นๆ กวนๆ" }
+            purchaseScript: { type: Type.STRING, description: "สคริปต์พูด 50 วินาทีรวมสำหรับคลิปทั้งหมด ปั่นๆ กวนๆ" },
+            scenes: {
+              type: Type.ARRAY,
+              description: "รายการฉากละครสั้น 5 ฉาก",
+              items: {
+                type: Type.OBJECT,
+                properties: {
+                  sceneNumber: { type: Type.INTEGER, description: "ลำดับฉาก 1 ถึง 5" },
+                  visualPrompt: { type: Type.STRING, description: "คำสั่งภาษาอังกฤษสร้างภาพของตัวละครด้วย Imagen 3 โดยละเอียดและมีความสม่ำเสมอ" },
+                  narration: { type: Type.STRING, description: "คำพากย์ในฉากนี้สำหรับ ElevenLabs ยาว 10 วินาที" },
+                  duration: { type: Type.INTEGER, description: "ระยะเวลาความยาว 10 วินาที" }
+                },
+                required: ["sceneNumber", "visualPrompt", "narration", "duration"]
+              }
+            }
           },
-          required: ["youtubeTitle", "youtubeCaption", "purchaseScript"]
+          required: ["youtubeTitle", "youtubeCaption", "purchaseScript", "scenes"]
         }
       }
     });
@@ -211,23 +229,87 @@ async function generateContentWithGemini(productName: string, productDesc: strin
   }
 }
 
-// Fallback AI generator
+// Fallback AI generator containing premium 5-scene drama script simulations with locked characters
 function generateSimulatedAIResponse(productName: string, productDesc: string, affiliateLink: string) {
   const nameLower = (productName || "").toLowerCase();
   
   if (nameLower.includes("กาแฟ") || nameLower.includes("coffee") || nameLower.includes("espresso")) {
     return {
       youtubeTitle: `เครื่องชงกาแฟพกพา: บีบจนมือหัก...แต่ไม่ได้กินกาแฟ?! ☕️🤣 #shorts`,
-      youtubeCaption: `รีวิวเรียลๆ เครื่องชงกาแฟเอสเพรสโซ่พกพา ไม่ต้องใช้ไฟฟ้า!\n\nบอกเลยว่าคุ้มค่ามาก... แค่ตักผงใส่ เติมน้ำร้อน แล้วใช้สองมือบีบๆๆๆ เค้นพลังชีวิตทั้งหมดที่มีออกมา เพื่อให้ได้เอสเพรสโซ่หนึ่งจอกเล็กๆ! สรุปกาแฟยังไม่เข้าปาก แต่เส้นเลือดสมองจะแตกแทน 😭 บีบเสร็จกล้ามแขนขึ้นทันตาเห็น โคตรเหนื่อย! สุดท้ายเลยหิ้วเครื่องนี้เดินเข้าร้านคาเฟ่ให้บาริสต้าเค้าชงให้ สบายใจละ 🤣\n\nพิกัดสำหรับสายฟิตเนสอยากบริหารกล้ามแขนพร้อมดื่มด่ำกลิ่นกาแฟ:\n👉 ${affiliateLink}\n\n#ตลกหักมุม #เครื่องชงกาแฟพกพา #รีวิวกวนๆ #กาแฟสด #นายหน้าShopee #ของมันต้องมี #Shorts`,
-      purchaseScript: `เครื่องชงกาแฟพกพา ไม่ใช้ไฟฟ้า แค่ใช้แรงบีบมือ! บีบไปบีบมาครึ่งชั่วโมงไม่ได้กินน้ำกาแฟ แต่เส้นเลือดในสมองจะแตกก่อน! สรุปคุ้มมาก... ได้กล้ามแขน แต่อดกินกาแฟ จิ้มลิงก์เลย!`
+      youtubeCaption: `รีวิวเรียลๆ เครื่องชงกาแฟเอสเพรสโซ่พกพา ไม่ต้องใช้ไฟฟ้า!\n\nบอกเลยว่าคุ้มค่ามาก... แค่ตักผงใส่ เทน้ำร้อน แล้วใช้สองมือบีบๆๆๆ เค้นพลังชีวิตทั้งหมดที่มีออกมา เพื่อให้ได้เอสเพรสโซ่หนึ่งจอกเล็กๆ! สรุปกาแฟยังไม่เข้าปาก แต่เส้นเลือดสมองจะแตกแทน 😭 บีบเสร็จกล้ามแขนขึ้นทันตาเห็น โคตรเหนื่อย! สุดท้ายเลยหิ้วเครื่องนี้เดินเข้าร้านคาเฟ่ให้บาริสต้าเค้าชงให้ สบายใจละ 🤣\n\nพิกัดสำหรับสายฟิตเนสอยากบริหารกล้ามแขนพร้อมดื่มด่ำกลิ่นกาแฟ:\n👉 ${affiliateLink}\n\n#ตลกหักมุม #เครื่องชงกาแฟพกพา #รีวิวกวนๆ #กาแฟสด #นายหน้าShopee #ของมันต้องมี #Shorts`,
+      purchaseScript: `รีวิวสุดปั่นจากลุงเฉลียว เครื่องชงกาแฟพกพาบีบเค้นพลังชีวิต! หมุนเกลียวบดกาแฟจนกล้ามปูด แต่สุดท้ายไม่ได้กินสักอึก เพราะเครื่องบีบฝืดจัด เลยต้องหิ้วซากเครื่องเดินไปให้บาริสต้าในคาเฟ่แถวบ้านช่วยชงให้ กินกาแฟเสร็จสบายใจ ลุงแกกำหมัดหัวเราะร่า ค้างคาใจจนอยากสอยมาลองบีบดูเลยจ้า!`,
+      scenes: [
+        {
+          sceneNumber: 1,
+          visualPrompt: "A close-up photograph of Chaleo, a 68-year-old Thai man with round black glasses and orange plaid shirt, holding a handheld manual portable espresso maker, looking proud. Cinematic 2K, photorealistic.",
+          narration: "ลุงเฉลียวขอนำเสนอ! เครื่องชงกาแฟพกพาแมนนวลสุดเท่ ไม่ใช้ไฟฟ้า บีบมือฟิตปั๋งดั่งใจนึก",
+          duration: 10
+        },
+        {
+          sceneNumber: 2,
+          visualPrompt: "Chaleo, a 68-year-old Thai man with round black glasses and orange plaid shirt, sweating and squeezing the coffee maker with both hands, face straining with maximum effort. Highly detailed, cinematic.",
+          narration: "ใส่ผงกาแฟกับน้ำร้อนแล้วก็ออกแรงบีบๆๆ เค้นพลังแขนทั้งหมดที่มีในชีวิตเพื่อเอสเพรสโซ่หยดเดียว!",
+          duration: 10
+        },
+        {
+          sceneNumber: 3,
+          visualPrompt: "Chaleo, a 68-year-old Thai man with round black glasses and orange plaid shirt, looking extremely exhausted, veins bulging on his forehead as he continues to squeeze. Dynamic shadow lighting.",
+          narration: "บีบจนกล้ามแขนปูด มือแทบหัก หน้ามืดสั่นสะท้าน เส้นเลือดในสมองจะแตกก่อนกาแฟเข้าปากละครับท่านผู้ช้ม!",
+          duration: 10
+        },
+        {
+          sceneNumber: 4,
+          visualPrompt: "Chaleo, a 68-year-old Thai man with round black glasses and orange plaid shirt, walking into a modern cozy cafe carrying the manual coffee maker, talking to a polite barista behind the counter. Cinematic.",
+          narration: "ช้าก่อน! บีบไปสิบนาทีไม่ได้สักหยด ลุงแกเลยถอดใจ หิ้วเครื่องนี้เดินเข้าร้านคาเฟ่แอร์เย็นฉ่ำหน้าปากซอยเฉยเลย!",
+          duration: 10
+        },
+        {
+          sceneNumber: 5,
+          visualPrompt: "A plot-twist ending scene. Chaleo, a 68-year-old Thai man with round black glasses and orange plaid shirt, sitting happily at a cafe table sipping a beautiful latte art coffee served by the barista, looking victorious. Cinematic.",
+          narration: "หักมุมสุดปั่น! สรุปให้บาริสต้ามืออาชีพเค้าชงให้ สบายใจแฮปปี้สุดๆ! จิ้มสอยไปลองกำลังแขนกันได้ที่ลิงก์จ้า!",
+          duration: 10
+        }
+      ]
     };
   }
-  
-  if (nameLower.includes("ไมโครโฟน") || nameLower.includes("microphone") || nameLower.includes("sound")) {
+
+  if (nameLower.includes("ไมโครโฟน") || nameLower.includes("micro") || nameLower.includes("sound") || nameLower.includes("wireless")) {
     return {
-      youtubeTitle: `ไมค์ไร้สายโคตรดี: ตัดเสียงรบกวนได้ทุกอย่าง ยกเว้นเสียงเมีย! 🎙️💀 #shorts`,
-      youtubeCaption: `รีวิวไมโครโฟนไร้สายขนาดเล็กสำหรับแคสเกมทำคลิป!\n\nบอกเลยว่าระบบตัดเสียงรบกวนอัจฉริยะเค้าทำมาดีจริงๆ ตัดเสียงลม เสียงพัดลม เสียงสิบล้อวิ่งผ่านหายเกลี้ยง ดุจดั่งอยู่นอกอวกาศ... ยกเว้นเสียงเมียตะโกนด่าจากหลังบ้าน! ชัดแจ๋วระดับ 4K เซอร์ราวด์ดิ่งทะลุลำโพง ลมแทบจับ! สรุปซื้อมาเพื่อพิสูจน์ว่า เทคโนโลยีของมนุษยชาติก็สู้พลังทำลายล้างของมนุษย์เมียไม่ได้ 🤣\n\nใครอยากท้าทายระบบปราบเสียงเมีย จิ้มลิงก์ไปพิสูจน์ด่วน:\n👉 ${affiliateLink}\n\n#ไมโครโฟนไร้สาย #รีวิวตลก #ตลกหักมุม #เสียงเมียกวนๆ #นายหน้าShopee #ของดีบอกต่อ #Shorts`,
-      purchaseScript: `ไมโครโฟนไร้สายตัดเสียงรบกวนดีเยี่ยม ตัดได้ยันเสียงรถไฟวิ่งผ่าน! ยกเว้นเสียงเมียบ่นจากในครัว... ชัดแจ๋วระดับแปดเค สรุปสิบล้อเงียบกริบ แต่เมียด่าทะลุไมค์ไปเลยจ้า!`
+      youtubeTitle: `ไมโครโฟนตัดเสียงรบกวน: เงียบกริบยันสิบล้อ...ยกเว้นเสียงเมียเตือนคาบ้าน! 🎙️💀 #shorts`,
+      youtubeCaption: `รีวิวไร้สายไมโครโฟนอัจฉริยะตัดเสียงรบกวนภายนอกรอบทิศทาง!\n\nใส่ปุ๊บเงียบปั๊บ นวัตกรรมระดับแสนล้าน เสียงลมเสียงฝนสิบล้อวิ่งผ่านหรือสุนัขเห่ายังโดนตัดหายเกลี้ยงดุจปิดเสียงโลก! แต่ช้าก่อน... ดันมีคลื่นความถี่พิเศษสลายฟิลเตอร์ นั่นคือเสียงอันทรงพลังทำลายล้างของภรรยาสุดที่รักตวัดเรียกแผดเผาเข้ามา! สรุปตัดได้ทุกเสียง ยกเว้นเสียงเมียครับท่านผู้ช้ม! ใครใจถึงอยากลองของจิ้มพิกัดเลยจ้า\n\nพิกัดไมค์กวนเสียงคนข้างกาย:\n👉 ${affiliateLink}\n\n#ไมโครโฟนไร้สาย #ตลกหักมุม #รีวิวตลก #นายหน้าShopee #ของใช้ไอที #Shorts`,
+      purchaseScript: `รีวิวไมค์ไร้สายลบเสียงรบกวนโดยกวิน นายแบบกล้ามฟิต แต่อุปกรณ์ระดับโลกก็ไม่อาจลบคลื่นความถี่พิเศษเสียงแผดเผาทะลุมิติของภรรยาสุดที่รัก สรุปหูดับคาไมค์เลยจ้า!`,
+      scenes: [
+        {
+          sceneNumber: 1,
+          visualPrompt: "A close-up photograph of Kawin, a handsome 28-year-old Thai man, dark tanned skin, short fade haircut, wearing sporty sunglasses and a tight black t-shirt, holding a mini wireless lavalier microphone, looking cool. Cinematic.",
+          narration: "กวินมาดเท่ขอนำเสนอ! ไมโครโฟนตัดเสียงรบกวนอัจฉริยะรุ่นใหม่ ลบเสียงรบกวนภายนอกได้เงียบกริบ",
+          duration: 10
+        },
+        {
+          sceneNumber: 2,
+          visualPrompt: "Kawin standing outdoors by a busy noisy street with trucks passing by, pointing to his microphone, talking confidently. Deep cinematic shadows.",
+          narration: "ทดสอบเดินริมถนนรถพ่วงวิ่งผ่านนึกว่าอยู่สนามรบ แต่พอเปิดระบบเงียบดุจอยู่ในห้องสมุดระดับชาติ!",
+          duration: 10
+        },
+        {
+          sceneNumber: 3,
+          visualPrompt: "Kawin walking home with a smug smile, holding his microphone, while rain is pouring. Dramatic cinematic lighting.",
+          narration: "สุดยอดฟิลเตอร์ระดับนาโน เสียงฝน ตะโกน หรือเครื่องขุดเจาะถนน ก็ปิดได้สนิทสะใจวัยรุ่นขีดสุด",
+          duration: 10
+        },
+        {
+          sceneNumber: 4,
+          visualPrompt: "Kawin entering his living room, talking to the camera, while a furious Thai woman in the background is shouting at him with her arms crossed. Highly detailed.",
+          narration: "แต่พอเข้าบ้านเท่านั้นแหละครับ! คลื่นเสียงปริศนาความถี่แสนล้านเดซิเบลจากเมียรักแผดเผาด่าสะท้านทะลุเข้ามา!",
+          duration: 10
+        },
+        {
+          sceneNumber: 5,
+          visualPrompt: "A plot-twist ending scene. Kawin looking terrified and covering his ears, with the microphone showing red warning light, and his wife pointing a rolling pin at him. Humorous realistic expression.",
+          narration: "หักมุมสุดยับ! เทคโนโลยีป้องกันลมได้ แต่ป้องกันเสียงบ่นเมียไม่ได้หูดับหัวสั่นคาบ้านด่วน! จิ้มลิงก์นายหน้าด่วนเลยจ้า!",
+          duration: 10
+        }
+      ]
     };
   }
 
@@ -235,23 +317,119 @@ function generateSimulatedAIResponse(productName: string, productDesc: string, a
     return {
       youtubeTitle: `คีย์บอร์ดบลูสวิตช์สุดฟิน: พิมพ์มันส์สะใจ...จนข้างบ้านตะโกนด่า! ⌨️🔥 #shorts`,
       youtubeCaption: `รีวิวคีย์บอร์ดปุ่มกดเสียงบลูสวิตช์สุดมันส์ ดีไซน์พิมพ์ดีดโบราณ!\n\nเสียงกดแก๊กๆๆๆ ดังไพเราะเพราะพริ้งปานเทพสร้าง พิมพ์งานมันส์มือสุดๆ เหมือนกำลังนั่งคีย์ข้อมูลกู้โลกอยู่... พิมพ์ไปได้ครึ่งชั่วโมง ได้ยินเสียงปังๆๆ มาจากข้างบ้าน! นึกว่าแฟนเพลงมาเคาะจังหวะร่วมด้วย ที่ไหนได้ ข้างบ้านเค้าตะโกนบอก 'หยุดพิมพ์โว้ยยย นึกว่าคนมารบกัน!' สุดท้ายต้องย้ายมาเล่นในมุ้งเงียบๆ สรุปฟินคนเดียว ข้างบ้านกำหมัดละ 🤣\n\nพิกัดคีย์บอร์ดกวนบ้านเรือนเคียง:\n👉 ${affiliateLink}\n\n#คีย์บอร์ดบลูสวิตช์ #ตลกหักมุม #MechanicalKeyboard #รีวิวกวนๆ #ป้ายยาสินค้า #Shorts`,
-      purchaseScript: `คีย์บอร์ดบลูสวิตช์พิมพ์มันส์เสียงแน่นดังสะใจ! นั่งพิมพ์แชตคุยกับสาวข้างบ้าน นึกว่าเสียงสงครามโลกครั้งที่สาม ข้างบ้านถึงกับปีนรั้วมาถีบประตูบ้าน! พิมพ์มันส์จริง ต้องลอง!`
+      purchaseScript: `รีวิวคีย์บอร์ดบลูสวิตช์ปุ่มลั่นปังๆ โดยลุงเฉลียว นั่งสวมเชิ้ตลายสก็อตสีส้มกวาดแป้นเสียงเพราะดุจเทพสร้าง แต่พิมพ์เพลินจนข้างบ้านหอบกำหมัดมาถีบประตูส้นแตก นึกว่าบ้านป้าสิวเปิดโรงงานถลุงแป้งเปียก!`,
+      scenes: [
+        {
+          sceneNumber: 1,
+          visualPrompt: "A close-up photograph of Chaleo, a 68-year-old Thai man with round black glasses and orange plaid shirt, sitting in front of a computer desk looking excited. He is unboxing a mechanical keyboard with glowing blue retro keycaps. Cinematic 2K, photorealistic.",
+          narration: "ลุงเฉลียวขอนำเสนอ! คีย์บอร์ดบลูสวิตช์ทรงพิมพ์ดีดโบราณ กดปั๊บดนตรีบรรเลงสไตล์ย้อนยุค",
+          duration: 10
+        },
+        {
+          sceneNumber: 2,
+          visualPrompt: "Chaleo, a 68-year-old Thai man with round black glasses and orange plaid shirt, typing happily on the retro mechanical keyboard. He has a delighted smile, fingers moving fast, keycaps emitting bright lights. High fidelity, cinematic.",
+          narration: "พิมพ์งานมันส์มือมากครับ! เสียงแก๊กๆๆ ดุจปืนกลเบาไพเราะเสนาะหู เหมือนคนกำลังเขียนบันทึกประวัติศาสตร์โลก",
+          duration: 10
+        },
+        {
+          sceneNumber: 3,
+          visualPrompt: "Chaleo, a 68-year-old Thai man with round black glasses and orange plaid shirt, getting completely absorbed in typing. His eyes are wide with joy, dynamic finger motion, dramatic shadow lighting in his home office.",
+          narration: "ยิ่งพิมพ์ยิ่งมันส์ ยิ่งพิมพ์ยิ่งอิน รัวนิ้วสู้กับทุกปัญหาชีวิต เสียงนี่ลั่นสนั่นไปทั่วตรอกซอกซอยเลยครับกระผม!",
+          duration: 10
+        },
+        {
+          sceneNumber: 4,
+          visualPrompt: "Chaleo, a 68-year-old Thai man with round black glasses and orange plaid shirt, typing with a serious face while a neighbor, a muscular Thai man, is peeking over the fence with an angry and annoyed face. High fidelity, cinematic.",
+          narration: "แต่ช้าก่อน! ลุงหารู้ไม่ว่า เสียงปุ่มกดแสนเพลินหูของลุง มันดังลั่นสนั่นทะลุกำแพงบ้านจนข้างบ้านขว้างขวานขู่!",
+          duration: 10
+        },
+        {
+          sceneNumber: 5,
+          visualPrompt: "A plot-twist ending scene. Chaleo, a 68-year-old Thai man with round black glasses and orange plaid shirt, sitting sheepishly inside a colorful cozy mosquito net in his room, typing quietly on his mechanical keyboard. Cinematic.",
+          narration: "หักมุมสุดป่วน! โดนทุบประตูด่า ลุงเฉลียวเลยต้องย้ายสำมะโนครัวมาพิมพ์คีย์บอร์ดบลูสวิตช์ในมุ้งกันยุงแทน! สอยไปพิมพ์กวนบ้านได้เลยจ้า!",
+          duration: 10
+        }
+      ]
     };
   }
 
-  if (nameLower.includes("พระจันทร์") || nameLower.includes("moon") || nameLower.includes("lamp")) {
+  if (nameLower.includes("พระจันทร์") || nameLower.includes("moon") || nameLower.includes("lamp") || nameLower.includes("โคมไฟ")) {
     return {
-      youtubeTitle: `โคมไฟพระจันทร์ลอยได้: เอามาสร้างความโรแมนติก...แต่จบตลกหักมุมเฉย! 🌕💀 #shorts`,
-      youtubeCaption: `รีวิวโคมไฟพระจันทร์ 3D ลอยได้สุดหรูหราไฮเทค หมุนได้รอบตัว เปลี่ยนได้ 3 สี!\n\nกะเอามาแต่งห้องนอน สร้างบรรยากาศสลัวๆ ชวนฝัน พาแฟนมาดินเนอร์โรแมนติกใต้แสงจันทร์... แต่พอเปิดปุ๊บ ไฟดันสว่างใสแจ๋วและสะท้อนความจริงอันโหดร้าย! แฟนเห็นคราบฝุ่นหนาเตอะที่ซุกอยู่ใต้เตียงและจานชามที่ยังไม่ได้ล้างในทันที! จากโรแมนติกกลายเป็นมหกรรมบิ๊กคลีนนิ่งเดย์ โดนด่ากวาดบ้านถูพื้นยันสว่างคาตาเลยจ้า สรุปโคมไฟดีเกินไปก็เป็นภัยต่อชีวิต 🤣\n\nใครอยากได้ตัวช่วยกระตุ้นการทำความสะอาดบ้าน จิ้มสอยด่วนจ้า:\n👉 ${affiliateLink}\n\n#โคมไฟพระจันทร์ลอยได้ #รีวิวตลก #ตลกหักมุม #โรแมนติกเฉย #ของแต่งห้องนอน #Shorts`,
-      purchaseScript: `โคมไฟพระจันทร์ลอยได้ สวยงามไฮเทค กะชวนแฟนมาโรแมนติกใต้แสงจันทร์สลัวๆ พอเปิดปุ๊บ สว่างจ้าจนแฟนเห็นเศษฝุ่นใต้เตียง โดนลุกมาถูบ้านยันตีสี่! โคมไฟเปลี่ยนชีวิตเลยกู!`
+      youtubeTitle: `โคมไฟพระจันทร์ลอยได้: สร้างความโรแมนติก...หรือแฉความสกปรก?! 🌕🧹 #shorts`,
+      youtubeCaption: `รีวิวโคมไฟพระจันทร์ลอยได้ ดีไซน์สุดล้ำและโรแมนติก!\n\nบอกเลยว่าแสงนวลตาชวนฝันมาก เหมาะสำหรับการสร้างบรรยากาศดินเนอร์แสนสวีทกับแฟนในห้อง... แต่พอเปิดปุ๊บ ความโรแมนติกหายวับทันที! แสงมันสว่างใสดุจสปอตไลท์แฉความจริงอันโหดร้าย เผยคราบฝุ่นหนาเตอะใต้เตียง และกองจานชามที่ทับถมกันในมุมห้องจนมองเห็นชัดเจนอย่างเหลือเชื่อ! สรุปจากค่ำคืนสุดหวานชื่น กลายเป็นมหกรรมบิ๊กคลีนนิ่งเดย์ โดนเมียด่าถูบ้านยันตีสี่เฉยเลย 🤣\n\nพิกัดแสงพระจันทร์ส่องแฉความสกปรก:\n👉 ${affiliateLink}\n\n#โคมไฟพระจันทร์ #ตลกหักมุม #รีวิวกวนๆ #แต่งห้องนอน #นายหน้าShopee #ของดีบอกต่อ #Shorts`,
+      purchaseScript: `รีวิวโคมไฟพระจันทร์ลอยได้ สวยนวลตาชวนสวีทใต้แสงจันทร์ แต่เปิดปุ๊บสว่างจ้าแฉทุกความสกปรกใต้เตียงจนกลายสภาพเป็นบิ๊กคลีนนิ่งเดย์ ถูพื้นขัดส้วมยันตีสี่สลบเหมือดจ้า!`,
+      scenes: [
+        {
+          sceneNumber: 1,
+          visualPrompt: "A close-up photograph of Pimmy, a beautiful 24-year-old Thai woman with long blond wavy hair, pearl earrings, and pink jacket, holding a modern floating 3D moon lamp that glows warmly, smiling. Cinematic 2K, photorealistic.",
+          narration: "พิมมี่คนสวยขอนำเสนอ! โคมไฟพระจันทร์ลอยได้ ดีไซน์สุดโรแมนติก เหมาะสำหรับแต่งห้องนอนสร้างบรรยากาศชวนฝัน",
+          duration: 10
+        },
+        {
+          sceneNumber: 2,
+          visualPrompt: "Pimmy and her boyfriend (a young Thai man) sitting in a dark bedroom, looking at the glowing moon lamp on the nightstand, warm and cozy mood. Cinematic.",
+          narration: "ค่ำคืนแสนสวีท พาแฟนหนุ่มมาดินเนอร์โรแมนติกใต้แสงจันทร์สลัวๆ หวังกระชับความสัมพันธ์ให้หวานชื่น",
+          duration: 10
+        },
+        {
+          sceneNumber: 3,
+          visualPrompt: "Pimmy presses the button to turn on the moon lamp, and it emits an incredibly bright, intense white light that illuminates the entire room vividly. Detailed.",
+          narration: "แต่พอเปิดปุ๊บ! แสงโคมไฟพระจันทร์ดันสว่างใสแจ๋วระยิบระยับทะลุสลัว สว่างยิ่งกว่าไฟนีออนร้อยวัตต์ซะอีก!",
+          duration: 10
+        },
+        {
+          sceneNumber: 4,
+          visualPrompt: "Pimmy's boyfriend looking horrified, pointing at thick layers of dust under the bed and a pile of unwashed dishes in the corner, illuminated by the bright moon light. Realistic facial expressions.",
+          narration: "ความจริงอันโหดร้ายปรากฏทันตาเห็น! แสงไฟสะท้อนคราบฝุ่นหนาเตอะใต้เตียง และกองจานชามที่ยังไม่ได้ล้างเขินๆ!",
+          duration: 10
+        },
+        {
+          sceneNumber: 5,
+          visualPrompt: "A plot-twist ending scene. Pimmy holding a mop and a broom, looking exhausted and angry, sweeping the floor at 4 AM, while her boyfriend is scrubbing the toilet in the background. Moon lamp is glowing brightly on the side. Cinematic.",
+          narration: "สรุป: หักมุมกลายเป็นมหกรรมบิ๊กคลีนนิ่งเดย์ โดนเมียด่ากวาดถูบ้านยันตีสี่สลบเหมือดคาไม้กวาด! สอยด่วนที่พิกัดลิงก์เลยจ้า!",
+          duration: 10
+        }
+      ]
     };
   }
 
-  if (nameLower.includes("สัตว์เลี้ยง") || nameLower.includes("pet") || nameLower.includes("feeder")) {
+  if (nameLower.includes("สัตว์เลี้ยง") || nameLower.includes("pet") || nameLower.includes("feeder") || nameLower.includes("อาหารสัตว์")) {
     return {
       youtubeTitle: `เครื่องให้อาหารแมวอัจฉริยะ: ซื้อมาอำนวยความสะดวก...หรือซื้อมาให้แมวซ้อมมวย?! 🐱🥊 #shorts`,
       youtubeCaption: `รีวิวถังอาหารสัตว์เลี้ยงอัจฉริยะ มีกล้องพูดคุยเรียลไทม์!\n\nชีวิตสโลว์ไลฟ์ของคนรักสัตว์ ตั้งค่าป้อนอาหารผ่านแอปหรูหราหมาเห่า แต่อย่าประเมินพลังความหิวกระหายของไอ้ส้มที่บ้านต่ำไป! พอบอทจ่ายอาหารช้าไปวิเดียว ไอ้ส้มมันเดินมากำหมัด คว่ำถังเขย่าจนเม็ดร่วงกราวอย่างมืออาชีพ แถมจ้องตาเขม็งใส่กล้องเหมือนจะบอกว่า 'ตู้กับข้าวแค่นี้ คิดว่าปราบข้าได้เหรอทาส?!' สรุปกล้องที่ติดมาเอาไว้ดูมันซ้อมมวยพังเครื่องเล่นๆ 🤣\n\nพิกัดซื้อของเล่นซ้อมมวยให้เจ้านายของคุณ:\n👉 ${affiliateLink}\n\n#เครื่องให้อาหารสัตว์เลี้ยง #รีวิวตลก #ตลกหักมุม #ไอ้ส้มลูกพ่อ #ของใช้หมาแมว #Shorts`,
-      purchaseScript: `เครื่องให้อาหารหมาแมวอัจฉริยะ ตั้งเวลาอาหารคุยผ่านกล้องได้! แต่พอมันจ่ายอาหารช้าวิเดียว ไอ้ส้มตบเครื่องคว่ำแล้วหยิบกินเอง คุยผ่านกล้องทีแมวจ้องตาเขม็งเหมือนจะแว้งกัด!`
+      purchaseScript: `เครื่องให้อาหารหมาแมวอัจฉริยะ ตั้งเวลาอาหารคุยผ่านกล้องได้! แต่พอมันจ่ายอาหารช้าวิเดียว ไอ้ส้มตบเครื่องคว่ำแล้วหยิบกินเอง คุยผ่านกล้องทีแมวจ้องตาเขม็งเหมือนจะแว้งกัด!`,
+      scenes: [
+        {
+          sceneNumber: 1,
+          visualPrompt: "A close-up photograph of Pimmy, a beautiful 24-year-old Thai woman with long blond wavy hair, pearl earrings, and pink jacket, holding a modern smart automatic pet feeder, smiling warmly. Cinematic 2K, photorealistic.",
+          narration: "พิมมี่คนสวยขอนำเสนอ! เครื่องให้อาหารหมาแมวอัจฉริยะ มีกล้องพูดคุยเรียลไทม์ ตั้งเวลาแอปอย่างดี",
+          duration: 10
+        },
+        {
+          sceneNumber: 2,
+          visualPrompt: "Pimmy using her phone, looking at a live video feed of her cat, a fat orange tabby cat named Som, sitting next to the pet feeder waiting. Warm lighting.",
+          narration: "ตั้งเวลาป้อนอาหารผ่านแอปหรูหราหมาเห่า ชีวิตสโลว์ไลฟ์คนรักแมว คุยกับเจ้าส้มได้จากทุกมุมโลก",
+          duration: 10
+        },
+        {
+          sceneNumber: 3,
+          visualPrompt: "Som, a fat angry orange cat, standing on its hind legs next to the automatic feeder, looking at the lens with a fierce, demanding glare, raising its paw like a boxer.",
+          narration: "แต่อย่าประเมินพลังความหิวกระหายของเจ้าส้มต่ำไป! พอบอทจ่ายอาหารช้ากว่าปกติไปแค่วินาทีเดียวเท่านั้น",
+          duration: 10
+        },
+        {
+          sceneNumber: 4,
+          visualPrompt: "Som the orange cat violently shaking and punching the automatic feeder, kibbles spilling out everywhere on the floor, hilarious chaotic motion, action shot.",
+          narration: "มันเดินมากำหมัด คว่ำถังเขย่าสะท้าน จนเม็ดร่วงกราวอย่างกับมืออาชีพ! แกร่งขีดสุดแกร่งยิ่งกว่าตู้เซฟ",
+          duration: 10
+        },
+        {
+          sceneNumber: 5,
+          visualPrompt: "A plot-twist ending scene. Pimmy looking shocked, holding her face in hands, while Som sits on top of the ruined pet feeder looking like a king, staring Graves at the camera. Cinematic.",
+          narration: "สรุป: ซื้อเครื่องมาอำนวยความสะดวก แต่เจ้าส้มใช้ซ้อมมวยโชว์พังเครื่องเล่นๆ! อยากซ้อมมวยแมว จิ้มซื้อเลยจ้า!",
+          duration: 10
+        }
+      ]
     };
   }
 
@@ -259,7 +437,39 @@ function generateSimulatedAIResponse(productName: string, productDesc: string, a
   return {
     youtubeTitle: `ของมันต้องมี! หรือต้องไม่มีดีนะ? 🤔 ${productName} #shopeeaffiliate #shorts`,
     youtubeCaption: `นี่คือรีวิวเรียลๆ ของ "${productName}"! \n\nบอกเลยว่าตั้งแต่ซื้อมาใช้ ชีวิตเปลี่ยนไปมาก... เปลี่ยนจากนอนหลับสบายเป็นมานั่งเครียดเรื่องเงินแทน! หยอกๆ 🤣\nก็เอาเถอะ สำหรับชิ้นนี้มันดีตรงที่ "${productDesc}"\n\nใครใจถึงอยากลองของ จิ้มพิกัดท้ายคลิปตรงนี้เลยจ้า อย่าปล่อยให้เงินค้างบัญชี!\n👉 ${affiliateLink}\n\n#รีวิวตลก #นายหน้าShopee #ShopeeTH #ของใช้รีวิว #ชี้เป้าโปรถูก #Shorts`,
-    purchaseScript: `แกรรร! สิ่งนี้คือที่สุดละ ซื้อมาเพื่อความบันเทิงและพบมุกตลกหักมุมในชีวิตจริง ไม่เชื่อไปจิ้มลิงก์ที่ใต้โปรไฟล์เลยด่วน!`
+    purchaseScript: `รีวิวตลกร้ายฉากละคร 5 ฉากหักมุมกับพิมมี่ที่ชวนทุกคนมาพิสูจน์สิ่งดีๆ เพื่อชีวิตที่กวนป่วนค้างคาใจน่าซื้อน่าฟินขั้นสุด!`,
+    scenes: [
+      {
+        sceneNumber: 1,
+        visualPrompt: "A close-up photograph of Pimmy, a beautiful 24-year-old Thai woman with long blond wavy hair, pearl earrings, and pink jacket, holding the product, smiling warmly. Cinematic 2K, photorealistic.",
+        narration: `รีวิวชิ้นเด่นจากพิมมี่! ของเล่นหรูหราหมาเห่า ดีไซน์พรีเมียมของ "${productName}" ที่คิดมาแล้วเพื่อความสุขสบายสูงสุดของแฟนๆ`,
+        duration: 10
+      },
+      {
+        sceneNumber: 2,
+        visualPrompt: "Pimmy, a 24-year-old Thai woman in pink jacket, demonstrating the product with a graceful smile. High fidelity, cinematic lighting.",
+        narration: "ฟังก์ชันใช้ง่ายไม่ซับซ้อน เหมาะแก่การประดับบ้านหรือพกพาไปเปิดประสบการณ์ใหม่สุดตระการตา",
+        duration: 10
+      },
+      {
+        sceneNumber: 3,
+        visualPrompt: "Pimmy, a 24-year-old Thai woman in pink jacket, pushing a button on the product. A sudden puff of smoke or funny spark occurs. Cinematic, detailed, realistic.",
+        narration: "แต่เดี๋ยวก่อน! ขึ้นชื่อว่าของดีระดับจักรวาล ย่อมแฝงความมหัศจรรย์อันซับซ้อนและเร้าใจให้ตื่นเต้น",
+        duration: 10
+      },
+      {
+        sceneNumber: 4,
+        visualPrompt: "Pimmy, a 24-year-old Thai woman in pink jacket, looking worriedly at her empty purse, with receipts scattering. Humorous realistic expression, cinematic.",
+        narration: "ทว่า ความท้าทายที่แท้จริงไม่ได้อยู่ที่ตัวเครื่อง แต่อยู่ที่การวู่วามช้อปปิ้งตอนตีสองจนเงินในบัญชีอันตรธานหาย!",
+        duration: 10
+      },
+      {
+        sceneNumber: 5,
+        visualPrompt: "A plot-twist ending scene. Pimmy, a 24-year-old Thai woman with blond hair and pink jacket, sitting on a pile of boxes, smiling brightly while eating a single bowl of plain instant noodles with a golden spoon. Photorealistic, cinematic depth of field.",
+        narration: "หักมุมเฉย! ได้สินค้าหรูสมใจ แต่ตังค์หมดเกลี้ยง ต้องนั่งกินบะหมี่สำเร็จรูปด้วยช้อนทองคำแท้ประดับบารมี! จิ้มซื้อลิงก์ด้านล่างด่วน!",
+        duration: 10
+      }
+    ]
   };
 }
 
@@ -273,24 +483,24 @@ async function generateCoverWithGemini(productName: string, productDesc: string,
   }
 
   const systemInstruction = `คุณเป็นนักคิดก็อปปี้ไรท์เตอร์โฆษณา ครีเอทีฟโฆษณา และนายหน้า Shopee สายตลก แสบๆ กวนๆ ตลกหักมุม (Plot Twist) ของประเทศไทย
-  หน้าที่ของคุณคือการคิดคำพูดและข้อความโฆษณาบนภาพปก YouTube Shorts สำหรับสินค้าชิ้นนี้ โดยเน้นสไตล์ตลกหักมุมสุดพีค (Plot Twist)
+  หน้าที่ของคุณคือการคิดคำพูดและข้อความโฆษณาบนภาพปก YouTube Shorts สำหรับสินค้าชิ้นนี้ โดยเน้นสไตล์ตลกหักมุมสุดพีค (Plot Twist) และเหมาะกับตัวละครคาแร็กเตอร์ที่ถูกระบุ
   
   คุณต้องตอบกลับเป็น JSON ที่มีโครงสร้างฟิลด์ดังนี้เท่านั้น ห้ามใส่เครื่องหมายคำพูด Markdown หรือส่วนตกแต่งคำนำหรือสรุปอื่นๆ:
   {
     "titleOverlay": "ข้อความพาดหัวตัวใหญ่บนหน้าปก (สั้นๆ สะดุดตา กวนๆ ไม่เกิน 30 ตัวอักษร เช่น ชงกาแฟ บีบมือหัก!)",
-    "modelSubtitle": "คำพูดเจ็บๆ หรือในใจของนายแบบ/นางแบบ (เช่น กาแฟไม่ได้กิน เส้นเลือดสมองจะแตกก่อน! ไม่เกิน 45 ตัวอักษร)",
-    "plotTwist": "มุขหักมุมตอนจบเฉลยความจริงฮาๆ (เช่น สรุปบีบครึ่งชั่วโมง เดินไปร้านคาเฟ่บาริสต้าชงให้สบายใจ สั้นๆ ไม่เกิน 60 ตัวอักษร)",
-    "stampText": "สติกเกอร์สั้นๆ แปะบนหน้าปก เช่น เมียด่า, มือหัก, ซื้อทำไม (ไม่เกิน 10 ตัวอักษร)"
+    "modelSubtitle": "คำพูดเจ็บๆ หรือในใจของตัวละครลุงเฉลียว, กวิน, หรือพิมมี่ (ไม่เกิน 45 ตัวอักษร เช่น บีบจนกล้ามปูด...ไม่ได้กินสักหยด!)",
+    "plotTwist": "มุขหักมุมตอนจบเฉลยความจริงฮาๆ (ไม่เกิน 60 ตัวอักษร เช่น สรุปเดินไปคาเฟ่ บาริสต้าชงให้ สบายใจละ 🤣)",
+    "stampText": "สติกเกอร์สั้นๆ แปะบนหน้าปก เช่น เมียด่า, มือหัก, มัดจำไว้ (ไม่เกิน 10 ตัวอักษร)"
   }`;
 
   const prompt = `ช่วยคิดคำปกสั้นๆ กวนๆ หักมุมสำหรับสินค้าชิ้นนี้:
   ชื่อสินค้า: "${productName}"
   คำอธิบาย: "${productDesc}"
-  สไตล์นายแบบ: "${modelStyle}"`;
+  สไตล์คาแร็กเตอร์: "${modelStyle}"`;
 
   try {
     const response = await ai.models.generateContent({
-      model: "gemini-2.5-flash",
+      model: "gemini-3.5-flash",
       contents: prompt,
       config: {
         systemInstruction: systemInstruction,
@@ -312,53 +522,53 @@ function generateSimulatedCover(productName: string, productDesc: string, modelS
   if (nameLower.includes("กาแฟ") || nameLower.includes("coffee") || nameLower.includes("espresso")) {
     return {
       titleOverlay: "ชงพกพา บีบจนมือหัก! ☕️",
-      modelSubtitle: "กาแฟยังไม่ได้กิน เส้นเลือดสมองจะแตกก่อน!",
-      plotTwist: "สรุป: คุ้มมาก... ได้กล้ามแขน แอยกดื่มกาแฟไม่อร่อย สุดท้ายต้องเดินเข้าร้านคาเฟ่บาริสต้าชงให้แทน 🤣",
-      stampText: "บีบมือหัก"
+      modelSubtitle: "ลุงเฉลียวบีบจนสั่น...เส้นเลือดสมองเดือดปุด!",
+      plotTwist: "สรุป: ได้กล้ามแขน แต่อดแดกกาแฟ เดินเข้าร้านคาเฟ่บาริสต้าชงสบายใจ 🤣",
+      stampText: "ลุงเฉลียวบีบ"
     };
   }
   
   if (nameLower.includes("ไมโครโฟน") || nameLower.includes("microphone") || nameLower.includes("sound")) {
     return {
-      titleOverlay: "ตัดเสียงรบกวนอัจฉริยะ! 🎙️",
-      modelSubtitle: "ตัดได้ยันเสียงสิบล้อ ยกเว้นเสียงเมียด่าจากหลังบ้าน!",
-      plotTwist: "สรุป: นวัตกรรมร้อยล้าน ก็พ่ายแพ้พลังเสียงทำลายล้างของเมียหลวง 💀",
-      stampText: "เสียงเมียชัดจัด"
+      titleOverlay: "ตัดเสียงรบกวนสิบล้อเงียบ! 🎙️",
+      modelSubtitle: "กวินเท่จัดตัดได้ทุกเสียง ยกเว้นเสียงเมียด่าคาบ้าน!",
+      plotTwist: "สรุป: นวัตกรรมแสนล้าน สู้พลังเสียงแผดเผาของเมียไม่ได้ 💀",
+      stampText: "กวินหูดับ"
     };
   }
 
   if (nameLower.includes("คีย์บอร์ด") || nameLower.includes("keyboard") || nameLower.includes("typing")) {
     return {
-      titleOverlay: "พิมพ์มันส์สะใจ ข้างบ้านทุบกำแพง! ⌨️",
-      modelSubtitle: "เสียงบลูสวิตช์ฟินจัด นึกว่ายิงถล่มสงครามโลก!",
-      plotTwist: "สรุป: พิมพ์แชตคุยกับสาวเพลินๆ ข้างบ้านเตรียมปีนมาถีบประตูบ้านพัง 🤣",
-      stampText: "ข้างบ้านกำหมัด"
+      titleOverlay: "พิมพ์มันส์สะใจ ข้างบ้านกำหมัด! ⌨️",
+      modelSubtitle: "เสียงลั่นสะท้านพิมพ์ดีด นึกว่าสงครามโลกปะทุ!",
+      plotTwist: "สรุป: พิมพ์แชตคุยสาวเพลิน ข้างบ้านถือไม้กวาดมาพังประตูส้วม 🤣",
+      stampText: "ข้างบ้านทุบยับ"
     };
   }
 
   if (nameLower.includes("พระจันทร์") || nameLower.includes("moon") || nameLower.includes("lamp")) {
     return {
-      titleOverlay: "โคมไฟพระจันทร์ โรแมนติก? 🌕",
-      modelSubtitle: "สว่างจ้าเกินไป แฟนเห็นเศษฝุ่นใต้เตียง สั่งถูบ้านยันสว่าง!",
-      plotTwist: "สรุป: กะมาดินเนอร์สวีท หลงกลโคมไฟ โดนลุกมาขัดห้องน้ำปาดเหงื่อยันเช้า 💀",
-      stampText: "บิ๊กคลีนนิ่งเดย์"
+      titleOverlay: "โคมไฟพระจันทร์ เปลี่ยนชีวิต! 🌕",
+      modelSubtitle: "พิมมี่หวังสวีท แสงจ้าจนเห็นฝุ่นหนาเตอะกวาดถูยันเช้า!",
+      plotTwist: "สรุป: จากค่ำคืนโรแมนติก กลายเป็นมหกรรมจับม็อบถูส้วมสลบเหมือด 💀",
+      stampText: "พิมมี่บิ๊กคลีน"
     };
   }
 
   if (nameLower.includes("สัตว์เลี้ยง") || nameLower.includes("pet") || nameLower.includes("feeder")) {
     return {
-      titleOverlay: "เครื่องให้อาหารแมวอัจฉริยะ? 🐱",
-      modelSubtitle: "บอทจ่ายช้าวิเดียว ไอ้ส้มตบเครื่องพัง หยิบแดกเองโคตรโปร!",
-      plotTwist: "สรุป: ตังค์จ่ายค่าเครื่องไฮเทค สรุปเครื่องกลายเป็นกระสอบทรายน้องส้ม 🥊",
-      stampText: "น้องส้มซ้อมมวย"
+      titleOverlay: "เครื่องให้ข้าวแมว.. หรือสอยมวย? 🐱",
+      modelSubtitle: "พิมมี่พูดผ่านกล้อง ไอ้ส้มตบเครื่องพังคว่ำกินเองเฉย!",
+      plotTwist: "สรุป: ซื้อถังอำนวยความสะดวก แมวส้มใช้ซ้อมมวยขู่ตะปบกล้องสลัด!",
+      stampText: "แมวส้มซ้อมมวย"
     };
   }
 
   // General fallback
   return {
     titleOverlay: `รีวิวเรียลๆ ${productName} ✨`,
-    modelSubtitle: `ซื้อมาหวังว่าชีวิตจะสบาย... แต่ได้ภาระมาแทนเฉย!`,
-    plotTwist: `สรุป: วู่วามกดซื้อตอนตีสอง ตื่นเช้ามาน้ำตาไหลพรากเพราะไม่มีตังค์กินข้าว 😭`,
+    modelSubtitle: `นึกว่าชีวิตจะสบาย... สุดท้ายได้ภาระมาดูแลเฉย!`,
+    plotTwist: `สรุป: วู่วามสอยตีสองตื่นมาตังค์เกลี้ยง นั่งจ้วงมาม่าด้วยช้อนทองคำเปลว 😭`,
     stampText: "ตีสองวู่วาม"
   };
 }
