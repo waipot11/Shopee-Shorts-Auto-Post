@@ -35,6 +35,14 @@ interface Product {
   originalUrl: string;
   description: string;
   videoSource?: string;
+  customCover?: {
+    coverTitle?: string;
+    coverSubtitle?: string;
+    coverPlotTwist?: string;
+    coverStamp?: string;
+    coverOverlayColor?: string;
+    coverModelStyle?: string;
+  };
 }
 
 interface PostLog {
@@ -229,6 +237,16 @@ export default function App() {
     const foundProd = products.find(p => p.id === prodId);
     if (!foundProd) return;
 
+    if (foundProd.customCover) {
+      setCoverModelStyle(foundProd.customCover.coverModelStyle || "ชายไทยกรุงเทพสู้ชีวิต (หนุ่มสู้ชีวิตหน้าตาบ้านๆ)");
+      setCoverTitle(foundProd.customCover.coverTitle || "");
+      setCoverSubtitle(foundProd.customCover.coverSubtitle || "");
+      setCoverPlotTwist(foundProd.customCover.coverPlotTwist || "");
+      setCoverStamp(foundProd.customCover.coverStamp || "");
+      setCoverOverlayColor(foundProd.customCover.coverOverlayColor || "yellow");
+      return;
+    }
+
     const nameLower = foundProd.name.toLowerCase();
     
     if (nameLower.includes("กาแฟ") || nameLower.includes("coffee") || nameLower.includes("espresso")) {
@@ -314,6 +332,48 @@ export default function App() {
       showNotification("เกิดข้อผิดพลาดในการคิดคำปก กรุณาลองใหม่อีกครั้ง", "error");
     } finally {
       setIsGeneratingCoverText(false);
+    }
+  };
+
+  const [isSavingCover, setIsSavingCover] = useState<boolean>(false);
+
+  const handleSaveCoverDesign = async () => {
+    if (!selectedProductIdForCover) {
+      showNotification("กรุณาเลือกสินค้าที่ต้องการบันทึกหน้าปก", "error");
+      return;
+    }
+
+    setIsSavingCover(true);
+    try {
+      const res = await fetch("/api/products/save-cover", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          productId: selectedProductIdForCover,
+          coverTitle,
+          coverSubtitle,
+          coverPlotTwist,
+          coverStamp,
+          coverOverlayColor,
+          coverModelStyle
+        })
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        showNotification(data.message || "บันทึกการส่งภาพปกเสร็จสมบูรณ์!");
+        
+        // Refresh products list
+        const pRes = await fetch("/api/products");
+        if (pRes.ok) setProducts(await pRes.json());
+      } else {
+        const errData = await res.json();
+        throw new Error(errData.error || "บันทึกไม่สำเร็จ");
+      }
+    } catch (err: any) {
+      showNotification(err.message || "เกิดข้อผิดพลาดในการบันทึก", "error");
+    } finally {
+      setIsSavingCover(false);
     }
   };
 
@@ -1696,10 +1756,18 @@ export default function App() {
                 <div className="mt-5 space-y-2 text-center w-full max-w-[320px]">
                   <button
                     type="button"
-                    onClick={() => showNotification("บันทึกการส่งภาพปกเสร็จสมบูรณ์! ภาพนี้จะติดอยู่ในหัวคลิป YouTube ของสินค้า")}
-                    className="w-full bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white font-bold py-2.5 rounded-2xl text-xs flex items-center justify-center gap-2 transition cursor-pointer"
+                    onClick={handleSaveCoverDesign}
+                    disabled={isSavingCover}
+                    className="w-full bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 disabled:opacity-50 text-white font-bold py-2.5 rounded-2xl text-xs flex items-center justify-center gap-2 transition cursor-pointer"
                   >
-                    🚀 บันทึกภาพปกนี้พ่วงกับคลิปสินค้าด่วน
+                    {isSavingCover ? (
+                      <span className="flex items-center gap-2">
+                        <span className="animate-spin inline-block w-3 h-3 border-2 border-white border-t-transparent rounded-full"></span>
+                        กำลังบันทึกข้อมูล...
+                      </span>
+                    ) : (
+                      <>🚀 บันทึกภาพปกนี้พ่วงกับคลิปสินค้าด่วน</>
+                    )}
                   </button>
                   <p className="text-[10px] text-slate-500">
                     รูปภาพได้รับการประมวลผลให้ทับซ้อนกับไฟล์วิดีโอ Shorts ขนาด 9:16 เรียบร้อยแล้วเพื่อใช้ตอนอัปโหลด

@@ -4,6 +4,10 @@ import fs from "fs/promises";
 import { GoogleGenAI, Type } from "@google/genai";
 import cron from "node-cron";
 import dotenv from "dotenv";
+import { exec } from "child_process";
+import { promisify } from "util";
+
+const execAsync = promisify(exec);
 
 // Load environment variables
 dotenv.config();
@@ -596,6 +600,204 @@ function getRealisticFallbackVideo(productId: string, productName: string): stri
   return "https://samplelib.com/preview/mp4/sample-10s.mp4";
 }
 
+// Helper to wrap text for Thai / English
+function wrapText(text: string, maxChars: number = 38): string[] {
+  const cleanText = (text || "").replace(/\n/g, " ");
+  if (cleanText.includes(" ")) {
+    const words = cleanText.split(" ");
+    const lines: string[] = [];
+    let currentLine = "";
+    for (const word of words) {
+      if ((currentLine + word).length > maxChars) {
+        if (currentLine) lines.push(currentLine.trim());
+        currentLine = word + " ";
+      } else {
+        currentLine += word + " ";
+      }
+    }
+    if (currentLine) lines.push(currentLine.trim());
+    return lines;
+  } else {
+    const lines: string[] = [];
+    for (let i = 0; i < cleanText.length; i += maxChars) {
+      lines.push(cleanText.substring(i, i + maxChars));
+    }
+    return lines;
+  }
+}
+
+// Helper to download external background image if needed
+async function downloadImageIfNeeded(urlOrPath: string): Promise<string> {
+  if (urlOrPath.startsWith("http://") || urlOrPath.startsWith("https://")) {
+    const tempDir = path.join(process.cwd(), "src", "db", "temp");
+    await fs.mkdir(tempDir, { recursive: true });
+    
+    const urlHash = Buffer.from(urlOrPath).toString("base64").substring(0, 20).replace(/[^a-zA-Z0-9]/g, "");
+    const tempFilePath = path.join(tempDir, `bg_${urlHash}.jpg`);
+    
+    try {
+      await fs.access(tempFilePath);
+      console.log(`ℹ️ [BG-CACHE] Using existing cached image: ${tempFilePath}`);
+      return tempFilePath;
+    } catch {
+      console.log(`📥 [BG-DOWNLOAD] Downloading image from URL: ${urlOrPath}`);
+      const res = await fetch(urlOrPath);
+      if (!res.ok) throw new Error(`HTTP error ${res.status}`);
+      const arrayBuffer = await res.arrayBuffer();
+      await fs.writeFile(tempFilePath, Buffer.from(arrayBuffer));
+      console.log(`✅ [BG-DOWNLOAD] Image downloaded to: ${tempFilePath}`);
+      return tempFilePath;
+    }
+  }
+  
+  if (urlOrPath.startsWith("/src")) {
+    return path.join(process.cwd(), urlOrPath);
+  }
+  return urlOrPath;
+}
+
+// CORE FUNCTION: Generate 9:16 Shorts Video containing custom structured layout
+async function generateShortsVideoFromCover(product: any, cover: any): Promise<string> {
+  console.log(`🎬 [VIDEO-GEN] Creating vertical video for "${product.name}"...`);
+  
+  // 1. Resolve Background Image
+  let bgSource = "";
+  const nameLower = (product.name || "").toLowerCase();
+  if (nameLower.includes("กาแฟ") || nameLower.includes("coffee") || nameLower.includes("espresso")) {
+    bgSource = path.join(process.cwd(), "src", "assets", "images", "thai_coffee_stray_shorts_1784280646086.jpg");
+  } else if (nameLower.includes("ไมโครโฟน") || nameLower.includes("microphone") || nameLower.includes("sound")) {
+    bgSource = path.join(process.cwd(), "src", "assets", "images", "thai_mic_wife_shorts_1784280660439.jpg");
+  } else if (nameLower.includes("คีย์บอร์ด") || nameLower.includes("keyboard") || nameLower.includes("typing")) {
+    bgSource = "https://picsum.photos/seed/keyboardgamer/600/1066";
+  } else if (nameLower.includes("พระจันทร์") || nameLower.includes("moon") || nameLower.includes("lamp")) {
+    bgSource = "https://picsum.photos/seed/moonlampgirl/600/1066";
+  } else if (nameLower.includes("สัตว์เลี้ยง") || nameLower.includes("pet") || nameLower.includes("feeder")) {
+    bgSource = "https://picsum.photos/seed/catgeektasty/600/1066";
+  } else {
+    bgSource = "https://picsum.photos/seed/thaiportraitpic/600/1066";
+  }
+
+  const localBgPath = await downloadImageIfNeeded(bgSource);
+  
+  // Create output directories
+  const tempDir = path.join(process.cwd(), "src", "db", "temp");
+  await fs.mkdir(tempDir, { recursive: true });
+  
+  const timestamp = Date.now();
+  const pngPath = path.join(tempDir, `cover_${timestamp}.png`);
+  const mp4Path = path.join(tempDir, `video_${timestamp}.mp4`);
+  
+  // 2. Prepare text parameters
+  const title = (cover.coverTitle || "สอยด่วน ของดีป้ายยา! 🔥").trim();
+  const subtitle = (cover.coverSubtitle || "").trim();
+  const stampText = (cover.coverStamp || "").trim();
+  const plotTwist = (cover.coverPlotTwist || "").trim();
+  const channelName = "@NoinaReview.th";
+  
+  const escapeShellArg = (arg: string) => {
+    return arg.replace(/'/g, "'\\''").replace(/%/g, "\\%");
+  };
+  
+  const escapedTitle = escapeShellArg(title);
+  const escapedStamp = escapeShellArg(stampText);
+  const escapedChannel = escapeShellArg(channelName);
+  
+  // Theme Color Configurations
+  let titleBgColor = "#facc15"; // yellow
+  let titleTextColor = "#0f172a";
+  
+  if (cover.coverOverlayColor === "green") {
+    titleBgColor = "#34d399";
+  } else if (cover.coverOverlayColor === "pink") {
+    titleBgColor = "#ec4899";
+    titleTextColor = "#ffffff";
+  } else if (cover.coverOverlayColor === "cyan") {
+    titleBgColor = "#22d3ee";
+  }
+
+  // Build the ImageMagick 'convert' drawing layers command
+  let convertCmd = `convert "${localBgPath}" \\
+    -resize 1080x1920! \\
+    -fill "rgba(0,0,0,0.5)" -draw "rectangle 0,0 1080,300" \\
+    -fill "rgba(0,0,0,0.75)" -draw "rectangle 0,1400 1080,1920" \\
+    \\
+    -fill "${titleBgColor}" -stroke "#000000" -strokewidth 4 -draw "roundrectangle 80,110 1000,250 24,24" \\
+    -font Garuda-Bold -pointsize 54 -fill "${titleTextColor}" -stroke none -gravity North -draw "text 0,145 '${escapedTitle}'"`;
+
+  // Draw stamp if present
+  if (stampText) {
+    convertCmd += ` \\
+      -fill "#f97316" -stroke "#ffffff" -strokewidth 3 -draw "roundrectangle 750,280 1000,350 15,15" \\
+      -font Garuda-Bold -pointsize 32 -fill "#ffffff" -stroke none -gravity NorthWest -draw "text 790,295 '🔥 ${escapedStamp}'"`;
+  }
+
+  // Draw speech bubble / subtitle if present
+  if (subtitle) {
+    const subtitleLines = wrapText(subtitle, 28);
+    const line1 = subtitleLines[0] || "";
+    const line2 = subtitleLines[1] || "";
+    
+    // Adjust speech bubble height if there's a second line
+    const bubbleHeight = line2 ? 655 : 590;
+    
+    convertCmd += ` \\
+      -fill "rgba(15,23,42,0.9)" -stroke "#475569" -strokewidth 3 -draw "roundrectangle 80,450 720,${bubbleHeight} 20,20" \\
+      -font Garuda-Bold -pointsize 32 -fill "#fdba74" -stroke none -gravity NorthWest -draw "text 120,490 '💬 \\"${escapeShellArg(line1)}\\"'"`;
+      
+    if (line2) {
+      convertCmd += ` \\
+        -font Garuda-Bold -pointsize 32 -fill "#fdba74" -stroke none -gravity NorthWest -draw "text 120,545 '${escapeShellArg(line2)}\\"'"`;
+    }
+  }
+
+  // Draw plot twist ending panel if present
+  if (plotTwist) {
+    const plotTwistLines = wrapText(plotTwist, 35);
+    const ptLine1 = plotTwistLines[0] || "";
+    const ptLine2 = plotTwistLines[1] || "";
+    
+    convertCmd += ` \\
+      -fill "rgba(15,23,42,0.95)" -stroke "#f59e0b" -strokewidth 4 -draw "roundrectangle 80,1440 1000,1660 30,30" \\
+      -fill "#f59e0b" -stroke none -draw "roundrectangle 120,1415 360,1465 10,10" \\
+      -font Garuda-Bold -pointsize 26 -fill "#0f172a" -gravity NorthWest -draw "text 140,1425 'มุขหักมุมเฉลย 🤣'" \\
+      -font Garuda-Bold -pointsize 32 -fill "#f8fafc" -gravity NorthWest -draw "text 120,1490 '${escapeShellArg(ptLine1)}'"`;
+      
+    if (ptLine2) {
+      convertCmd += ` \\
+        -font Garuda-Bold -pointsize 32 -fill "#f8fafc" -gravity NorthWest -draw "text 120,1550 '${escapeShellArg(ptLine2)}'"`;
+    }
+  }
+
+  // Draw channel branding, logo, and SUBSCRIBE button
+  convertCmd += ` \\
+    -fill "#f97316" -stroke "#ffffff" -strokewidth 3 -draw "circle 130,1780 130,1820" \\
+    -font Garuda-Bold -pointsize 36 -fill "#ffffff" -stroke none -gravity NorthWest -draw "text 115,1755 'N' \\
+    text 200,1740 '${escapedChannel}'" \\
+    -font Garuda -pointsize 24 -fill "#94a3b8" -gravity NorthWest -draw "text 200,1790 '1.2M subscribers'" \\
+    -fill "#dc2626" -stroke none -draw "roundrectangle 760,1740 980,1810 35,35" \\
+    -font Garuda-Bold -pointsize 24 -fill "#ffffff" -gravity NorthWest -draw "text 800,1755 'SUBSCRIBE'" \\
+    "${pngPath}"`;
+
+  console.log(`🎨 [VIDEO-GEN] Generating compiled layout PNG to: ${pngPath}`);
+  await execAsync(convertCmd);
+  
+  // 3. Compile MP4 using ffmpeg with silent audio track
+  const ffmpegCmd = `ffmpeg -y -loop 1 -i "${pngPath}" -f lavfi -i anullsrc=channel_layout=stereo:sample_rate=44100 -t 10 -c:v libx264 -pix_fmt yuv420p -vf "scale=1080:1920" -r 30 -c:a aac -shortest "${mp4Path}"`;
+  
+  console.log(`📹 [VIDEO-GEN] Converting PNG to 10s vertical MP4 at: ${mp4Path}`);
+  await execAsync(ffmpegCmd);
+  
+  // Clean up temporary PNG
+  try {
+    await fs.unlink(pngPath);
+  } catch (err) {
+    // Ignore error if already deleted
+  }
+  
+  console.log(`✅ [VIDEO-GEN] Video generated successfully: ${mp4Path}`);
+  return mp4Path;
+}
+
 // 4. Custom API for YouTube Shorts upload
 async function uploadToYouTubeShorts(title: string, description: string, videoUrl: string, productId: string = "", productName: string = "") {
   const config = await readConfig();
@@ -644,61 +846,72 @@ async function uploadToYouTubeShorts(title: string, description: string, videoUr
     }
     
     console.log("✅ YouTube Access Token refreshed successfully.");
-    console.log("📥 Fetching Shorts video binary from source URL:", videoUrl);
-
-    // Fetch video binary from URL with robust fallback strategy to ensure 100% upload success
-    let videoResponse: any = null;
+    let buffer: Buffer;
+    let fileSize: number;
     let finalVideoUrlUsed = videoUrl;
-    
-    // List of reliable video sources if the primary Mixkit source fails (Mixkit often blocks data center IPs with 403 Forbidden)
-    const fallbackUrl = getRealisticFallbackVideo(productId, productName || title);
-    const urlsToTry = [
-      videoUrl,
-      fallbackUrl,
-      "https://samplelib.com/preview/mp4/sample-10s.mp4",
-      "https://samplelib.com/preview/mp4/sample-5s.mp4",
-      "https://www.w3schools.com/html/mov_bbb.mp4"
-    ];
 
-    let lastFetchError = "";
-    for (let i = 0; i < urlsToTry.length; i++) {
-      const url = urlsToTry[i];
-      try {
-        console.log(`📥 [YouTube Upload] Trying to download video source (${i + 1}/${urlsToTry.length}): ${url}`);
-        
-        // Set standard browser headers for all sources to avoid bot-blocking, but ONLY send Referer to Mixkit
-        const headers: Record<string, string> = {
-          "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-          "Accept": "video/mp4,video/*,*/*",
-          "Accept-Language": "en-US,en;q=0.9"
-        };
-        
-        if (url && url.includes("mixkit.co")) {
-          headers["Referer"] = "https://mixkit.co/";
-        }
+    if (videoUrl && !videoUrl.startsWith("http://") && !videoUrl.startsWith("https://")) {
+      console.log("📁 Loading local compiled video file:", videoUrl);
+      const fileBuffer = await fs.readFile(videoUrl);
+      buffer = fileBuffer;
+      fileSize = fileBuffer.length;
+      finalVideoUrlUsed = "local_compiled_video.mp4";
+    } else {
+      console.log("📥 Fetching Shorts video binary from source URL:", videoUrl);
 
-        videoResponse = await fetch(url, { headers });
-        if (videoResponse.ok) {
-          finalVideoUrlUsed = url;
-          console.log(`✅ [YouTube Upload] Successfully downloaded video from: ${url}`);
-          break;
-        } else {
-          lastFetchError = `HTTP ${videoResponse.status} ${videoResponse.statusText}`;
-          console.warn(`⚠️ [YouTube Upload] Failed download from ${url}. Status: ${videoResponse.status}`);
+      // Fetch video binary from URL with robust fallback strategy to ensure 100% upload success
+      let videoResponse: any = null;
+      
+      // List of reliable video sources if the primary Mixkit source fails (Mixkit often blocks data center IPs with 403 Forbidden)
+      const fallbackUrl = getRealisticFallbackVideo(productId, productName || title);
+      const urlsToTry = [
+        videoUrl,
+        fallbackUrl,
+        "https://samplelib.com/preview/mp4/sample-10s.mp4",
+        "https://samplelib.com/preview/mp4/sample-5s.mp4",
+        "https://www.w3schools.com/html/mov_bbb.mp4"
+      ];
+
+      let lastFetchError = "";
+      for (let i = 0; i < urlsToTry.length; i++) {
+        const url = urlsToTry[i];
+        try {
+          console.log(`📥 [YouTube Upload] Trying to download video source (${i + 1}/${urlsToTry.length}): ${url}`);
+          
+          // Set standard browser headers for all sources to avoid bot-blocking, but ONLY send Referer to Mixkit
+          const headers: Record<string, string> = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+            "Accept": "video/mp4,video/*,*/*",
+            "Accept-Language": "en-US,en;q=0.9"
+          };
+          
+          if (url && url.includes("mixkit.co")) {
+            headers["Referer"] = "https://mixkit.co/";
+          }
+
+          videoResponse = await fetch(url, { headers });
+          if (videoResponse.ok) {
+            finalVideoUrlUsed = url;
+            console.log(`✅ [YouTube Upload] Successfully downloaded video from: ${url}`);
+            break;
+          } else {
+            lastFetchError = `HTTP ${videoResponse.status} ${videoResponse.statusText}`;
+            console.warn(`⚠️ [YouTube Upload] Failed download from ${url}. Status: ${videoResponse.status}`);
+          }
+        } catch (err: any) {
+          lastFetchError = err.message || String(err);
+          console.warn(`⚠️ [YouTube Upload] Network error for ${url}: ${lastFetchError}`);
         }
-      } catch (err: any) {
-        lastFetchError = err.message || String(err);
-        console.warn(`⚠️ [YouTube Upload] Network error for ${url}: ${lastFetchError}`);
       }
-    }
 
-    if (!videoResponse || !videoResponse.ok) {
-      throw new Error(`Failed to fetch video from all available sources. Last error: ${lastFetchError}`);
+      if (!videoResponse || !videoResponse.ok) {
+        throw new Error(`Failed to fetch video from all available sources. Last error: ${lastFetchError}`);
+      }
+      const videoBlob = await videoResponse.blob();
+      fileSize = videoBlob.size;
+      const arrayBuffer = await videoBlob.arrayBuffer();
+      buffer = Buffer.from(arrayBuffer);
     }
-    const videoBlob = await videoResponse.blob();
-    const fileSize = videoBlob.size;
-    const arrayBuffer = await videoBlob.arrayBuffer();
-    const buffer = Buffer.from(arrayBuffer);
 
     console.log(`📹 Uploading video to YouTube Resumable Upload API (${fileSize} bytes)...`);
 
@@ -847,17 +1060,85 @@ async function executeDailyAffiliateShortsPost(targetProductId?: string) {
 
   console.log(`🤖 [SYSTEM AUTO-POST] Gemini Creative Complete. Title: "${aiResult.youtubeTitle}"`);
 
-  // Video source fallback
-  const videoUrl = selectedProduct.videoSource || "https://assets.mixkit.co/videos/preview/mixkit-holding-a-smartphone-with-a-blank-screen-vertical-40176-large.mp4";
+  // Resolve Cover data
+  let coverData = selectedProduct.customCover;
+  if (!coverData) {
+    console.log("ℹ️ [SYSTEM AUTO-POST] No custom cover designed. Auto-generating cover with Gemini...");
+    let modelStyle = "ชายไทยกรุงเทพสู้ชีวิต (หนุ่มสู้ชีวิตหน้าตาบ้านๆ)";
+    const nameLower = selectedProduct.name.toLowerCase();
+    if (nameLower.includes("ไมโครโฟน") || nameLower.includes("microphone") || nameLower.includes("sound")) {
+      modelStyle = "หนุ่มออฟฟิศขี้เกรงใจเมีย ( blurred background ชวนเสียวหลัง)";
+    } else if (nameLower.includes("คีย์บอร์ด") || nameLower.includes("keyboard") || nameLower.includes("typing")) {
+      modelStyle = "หนุ่มหมีวิศวะสายเกมเมอร์";
+    } else if (nameLower.includes("พระจันทร์") || nameLower.includes("moon") || nameLower.includes("lamp") || nameLower.includes("สัตว์เลี้ยง") || nameLower.includes("pet")) {
+      modelStyle = "สาวชิคแต่งห้องนอนสายโรแมนติก";
+    }
+    
+    try {
+      const autoCover = await generateCoverWithGemini(selectedProduct.name, selectedProduct.description, modelStyle);
+      coverData = {
+        coverTitle: autoCover.titleOverlay,
+        coverSubtitle: autoCover.modelSubtitle,
+        coverPlotTwist: autoCover.plotTwist,
+        coverStamp: autoCover.stampText,
+        coverOverlayColor: "yellow",
+        coverModelStyle: modelStyle
+      };
+    } catch (e) {
+      console.warn("⚠️ [SYSTEM AUTO-POST] Gemini cover generation failed, using template fallback...");
+      let coverTitle = `รีวิวเรียลๆ ${selectedProduct.name} ✨`;
+      let coverSubtitle = "คิดว่าซื้อมาแล้วชีวิตจะสบาย... สุดท้ายได้ภาระมาแทน!";
+      let coverPlotTwist = "สรุป: วู่วามกดสั่งตอนตีสองตื่นเช้ามาปาดเหงื่อเพราะไม่มีจะกิน!";
+      let coverStamp = "สอยด่วนๆ";
+      
+      if (nameLower.includes("กาแฟ") || nameLower.includes("coffee") || nameLower.includes("espresso")) {
+        coverTitle = "ชงพกพา บีบจนมือหัก! ☕️😭";
+        coverSubtitle = "กาแฟยังไม่ได้จิบ เส้นเลือดสมองจะแตกแทน!";
+        coverPlotTwist = "สรุป: คุ้มค่ามาก... ได้กล้ามเนื้อไบเซป แต่อดดื่มกาแฟ ต้องเดินเข้าร้านคาเฟ่แทน!";
+        coverStamp = "บีบเค้นชีวิต";
+      } else if (nameLower.includes("ไมโครโฟน") || nameLower.includes("microphone") || nameLower.includes("sound")) {
+        coverTitle = "ตัดเสียงรบกวนอัจฉริยะ! 🎙️🤫";
+        coverSubtitle = "ตัดได้ยันเสียงสิบล้อ ยกเว้นเสียงเมียด่าจากหลังบ้าน!";
+        coverPlotTwist = "สรุป: นวัตกรรมร้อยล้าน ก็พ่ายแพ้พลังเสียงทำลายล้างของภรรยาสุดที่รัก!";
+        coverStamp = "สิบล้อเงียบกริบ";
+      }
+      
+      coverData = {
+        coverTitle,
+        coverSubtitle,
+        coverPlotTwist,
+        coverStamp,
+        coverOverlayColor: "yellow",
+        coverModelStyle: modelStyle
+      };
+    }
+  }
 
-  // Upload to YouTube Shorts
-  const uploadResult = await uploadToYouTubeShorts(
-    aiResult.youtubeTitle,
-    aiResult.youtubeCaption,
-    videoUrl,
-    selectedProduct.id,
-    selectedProduct.name
-  );
+  // Compile video from cover & upload to YouTube Shorts
+  let videoUrl = "";
+  let uploadResult: any = null;
+  
+  try {
+    const compiledVideoPath = await generateShortsVideoFromCover(selectedProduct, coverData);
+    videoUrl = compiledVideoPath;
+    
+    uploadResult = await uploadToYouTubeShorts(
+      aiResult.youtubeTitle,
+      aiResult.youtubeCaption,
+      videoUrl,
+      selectedProduct.id,
+      selectedProduct.name
+    );
+  } finally {
+    if (videoUrl && !videoUrl.startsWith("http://") && !videoUrl.startsWith("https://")) {
+      try {
+        await fs.unlink(videoUrl);
+        console.log("🗑️ Cleaned up temporary video file:", videoUrl);
+      } catch (err) {
+        console.error("⚠️ Failed to delete temporary video:", err);
+      }
+    }
+  }
 
   // Write new log entry
   const newLog = {
@@ -1003,6 +1284,36 @@ app.delete("/api/products/:id", async (req, res) => {
 
   await writeProducts(filtered);
   res.json({ success: true, message: "ลบสินค้าสำเร็จ" });
+});
+
+// POST /api/products/save-cover (Save Custom Cover Parameters)
+app.post("/api/products/save-cover", async (req, res) => {
+  try {
+    const { productId, coverTitle, coverSubtitle, coverPlotTwist, coverStamp, coverOverlayColor, coverModelStyle } = req.body || {};
+    if (!productId) {
+      return res.status(400).json({ error: "ไม่พบรหัสสินค้า (productId)" });
+    }
+    
+    const products = await readProducts();
+    const index = products.findIndex((p: any) => p.id === productId);
+    if (index === -1) {
+      return res.status(404).json({ error: "ไม่พบสินค้าในคลัง" });
+    }
+    
+    products[index].customCover = {
+      coverTitle,
+      coverSubtitle,
+      coverPlotTwist,
+      coverStamp,
+      coverOverlayColor,
+      coverModelStyle
+    };
+    
+    await writeProducts(products);
+    res.json({ success: true, message: "บันทึกการส่งภาพปกเสร็จสมบูรณ์! ภาพนี้จะถูกประกอบเข้ากับวิดีโอ Shorts ขนาด 9:16 ตอนโพสต์จริง" });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message || "เกิดข้อผิดพลาดในการบันทึกข้อมูลปก" });
+  }
 });
 
 // POST /api/generate-cover
